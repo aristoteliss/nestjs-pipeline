@@ -7,8 +7,7 @@ sites do not define which package APIs, adapters or future integrations are usef
 Repository caches serve persistence reads; pipeline caches can serve composed or
 aggregate application query results. Registering a module makes infrastructure
 available but does not demonstrate an active handler policy. See
-[AGENTS.md](../AGENTS.md) and the
-[architecture skill](../.agents/skills/nestjs-pipeline-architecture/SKILL.md)
+[CONTRIBUTING.md](../CONTRIBUTING.md)
 before changing cache placement or removing a feature based on this example.
 
 Disposable reference application demonstrating the `@nestjs-pipeline/*` packages with NestJS CQRS, MikroORM, CASL, Zod, caching, tracing, rate limiting, audit, idempotency, feature flags, resilience, correlation IDs, and dead-letter handling.

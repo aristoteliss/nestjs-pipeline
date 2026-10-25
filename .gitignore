@@ -46,12 +46,15 @@ packages/*/COMMERCIAL_LICENSE.txt
 *.swp
 *.swo
 
-# AI assistant workspace: only local settings, active task files and generator caches stay out
-# of the project; the rest of the agent workspace is shared.
-.claude/settings.local.json
-.claude/tasks/*
-!.claude/tasks/TEMPLATE.md
-.claude/state/
+# Local assistant & agent workspaces (kept locally, not committed to repository)
+.claude/
+.agents/
+*CLAUDE.md
+AGENTS.md
+scripts/*claude*.py
+scripts/update-claude-snapshot.py
+scripts/validate-claude-context.py
+.backup/
 __pycache__/
 
 # Archify local generator toolchain and build receipts

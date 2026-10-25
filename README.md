@@ -325,40 +325,9 @@ compiled and run; add a fixture for a new cross-package contract. Finally, on th
 each framework-neutral `@cqrs-ddd/*` copy is installed alone, without NestJS. Requirements:
 the repository's Node and pnpm, Bun, `tar`, and registry access for uncached dependencies.
 
-### Agent context files
+### Architecture & Contribution Guidelines
 
-`CLAUDE.md` and `.claude/codebase-map.md` give coding agents a compact orientation map of
-the repository; `AGENTS.md` holds the rules every agent follows. The files:
-
-| Path | Tracked | Purpose |
-| --- | --- | --- |
-| `CLAUDE.md`, and nested `CLAUDE.md` under `packages/`, `packages/pipeline/`, `packages/ddd-core/`, `packages/ddd-mikro-orm/`, `api/` | yes | Working instructions, and local rules per area |
-| `.claude/codebase-map.md` | yes | The map: generated sections plus human-owned sections |
-| `.claude/tasks/TEMPLATE.md`, `.claude/tasks/<task-id>.md` | yes | Template, and one file per active multi-step task |
-| `.claude/settings*.json`, `.claude/state/context-checkpoint.md` | no | Local settings and the pre-compaction checkpoint |
-
-```bash
-pnpm context:update     # regenerate the map's generated sections (human-written ones are preserved)
-pnpm context:check      # fail if the committed map no longer matches the repository
-pnpm context:validate   # required files and headings, secret scan, size budget, path references, generator run
-```
-
-The scripts in `scripts/` need Python 3.9+ and optionally `git`, with no third-party
-packages. `update-claude-snapshot.py` inspects structure only — manifests, directory layout,
-import specifiers, `process.env` names, README first paragraphs, git metadata — through
-`git ls-files`, and never executes project code, reads `.env*` or key material, or uses the
-network. `<!-- context:generated-* -->` blocks are rewritten on every run;
-`<!-- context:manual-* -->` blocks are copied through unchanged. `--check` ignores the
-volatile metadata fields, so only structural drift makes the map stale. Regenerate when
-architecture, modules, dependencies, entry points, commands or conventions change, then
-update the manual sections and run `pnpm context:validate`.
-
-A task file (`cp .claude/tasks/TEMPLATE.md .claude/tasks/<task-id>.md`) records decisions
-and verified results of active work only; when the task is done, move what is durable into
-source or a README and delete the file. `.claude/settings.json` registers a `PreCompact`
-hook, `scripts/claude-context-checkpoint.py`, that writes the current branch, commit,
-changed paths and task files to `.claude/state/context-checkpoint.md`. It never reads the
-conversation or file contents and always exits 0; remove the `hooks` block to disable it.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for architectural invariants, DDD boundaries, persistence lifecycle rules, and coding standards.
 
 ## Adding a New Behavior Package
 

@@ -27,59 +27,59 @@ importers:
         specifier: ^7.0.1
         version: 7.0.1
       '@cqrs-ddd/core':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.5.1
+        version: 0.5.1
       '@cqrs-ddd/mikro-orm':
-        specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/core@0.5.0)(@mikro-orm/core@7.2.3)
+        specifier: ^0.5.1
+        version: 0.5.1(@cqrs-ddd/core@0.5.1)(@mikro-orm/core@7.2.3)
       '@cqrs-ddd/nestjs':
-        specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/core@0.5.0)(@cqrs-ddd/pipeline-casl@0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-correlation@0.5.0)(@cqrs-ddd/pipeline-feature-flags@0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0)))(@cqrs-ddd/pipeline-idempotency@0.5.0(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-job-context@0.5.0)(@cqrs-ddd/pipeline-rate-limit@0.5.0(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-zod@0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5))(@cqrs-ddd/pipeline@0.5.0)(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))
+        specifier: ^0.5.1
+        version: 0.5.1(@cqrs-ddd/core@0.5.1)(@cqrs-ddd/pipeline-casl@0.5.1(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.1))(@cqrs-ddd/pipeline-correlation@0.5.1)(@cqrs-ddd/pipeline-feature-flags@0.5.1(@cqrs-ddd/pipeline@0.5.1)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0)))(@cqrs-ddd/pipeline-idempotency@0.5.1(@cqrs-ddd/pipeline@0.5.1))(@cqrs-ddd/pipeline-job-context@0.5.1)(@cqrs-ddd/pipeline-rate-limit@0.5.1(@cqrs-ddd/pipeline@0.5.1))(@cqrs-ddd/pipeline-zod@0.5.1(@cqrs-ddd/pipeline@0.5.1)(zod@4.6.5))(@cqrs-ddd/pipeline@0.5.1)(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))
       '@cqrs-ddd/pipeline':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.5.1
+        version: 0.5.1
       '@cqrs-ddd/pipeline-audit':
-        specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)
+        specifier: ^0.5.1
+        version: 0.5.1(@cqrs-ddd/pipeline@0.5.1)
       '@cqrs-ddd/pipeline-cache':
-        specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(@keyv/memcache@2.0.2(keyv@5.6.0))(@keyv/postgres@2.2.3(keyv@5.6.0))(@keyv/redis@5.1.6(@node-rs/xxhash@1.7.7)(@opentelemetry/api@1.9.1)(keyv@5.6.0))(@keyv/sqlite@4.0.8(keyv@5.6.0)(supports-color@10.2.2))(cache-manager@7.2.9)(keyv@5.6.0)
+        specifier: ^0.5.1
+        version: 0.5.1(@cqrs-ddd/pipeline@0.5.1)(@keyv/memcache@2.0.2(keyv@5.6.0))(@keyv/postgres@2.2.3(keyv@5.6.0))(@keyv/redis@5.1.6(@node-rs/xxhash@1.7.7)(@opentelemetry/api@1.9.1)(keyv@5.6.0))(@keyv/sqlite@4.0.8(keyv@5.6.0)(supports-color@10.2.2))(cache-manager@7.2.9)(keyv@5.6.0)
       '@cqrs-ddd/pipeline-casl':
-        specifier: ^0.5.0
-        version: 0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0)
+        specifier: ^0.5.1
+        version: 0.5.1(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.1)
       '@cqrs-ddd/pipeline-correlation':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.5.1
+        version: 0.5.1
       '@cqrs-ddd/pipeline-deadletter':
-        specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)
+        specifier: ^0.5.1
+        version: 0.5.1(@cqrs-ddd/pipeline@0.5.1)
       '@cqrs-ddd/pipeline-feature-flags':
-        specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))
+        specifier: ^0.5.1
+        version: 0.5.1(@cqrs-ddd/pipeline@0.5.1)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))
       '@cqrs-ddd/pipeline-idempotency':
-        specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)
+        specifier: ^0.5.1
+        version: 0.5.1(@cqrs-ddd/pipeline@0.5.1)
       '@cqrs-ddd/pipeline-job-context':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.5.1
+        version: 0.5.1
       '@cqrs-ddd/pipeline-opentelemetry':
-        specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(@opentelemetry/api@1.9.1)
+        specifier: ^0.5.1
+        version: 0.5.1(@cqrs-ddd/pipeline@0.5.1)(@opentelemetry/api@1.9.1)
       '@cqrs-ddd/pipeline-rate-limit':
-        specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)
+        specifier: ^0.5.1
+        version: 0.5.1(@cqrs-ddd/pipeline@0.5.1)
       '@cqrs-ddd/pipeline-resilience':
-        specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(cockatiel@4.0.0)
+        specifier: ^0.5.1
+        version: 0.5.1(@cqrs-ddd/pipeline@0.5.1)(cockatiel@4.0.0)
       '@cqrs-ddd/pipeline-tenant':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.5.1
+        version: 0.5.1
       '@cqrs-ddd/pipeline-zod':
-        specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5)
+        specifier: ^0.5.1
+        version: 0.5.1(@cqrs-ddd/pipeline@0.5.1)(zod@4.6.5)
       '@cqrs-ddd/safe-stringify':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.5.1
+        version: 0.5.1
       '@fastify/secure-session':
         specifier: ^8.4.0
         version: 8.4.0(bare-events@2.9.2)(bare-url@2.5.4)
@@ -187,8 +187,8 @@ importers:
         specifier: ^2.5.14
         version: 2.5.14
       '@cqrs-ddd/uuidv7':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.5.1
+        version: 0.5.1
       '@libsql/client':
         specifier: ^0.18.0
         version: 0.18.0
@@ -1022,11 +1022,15 @@ packages:
     resolution: {integrity: sha512-sMDJvD7yEy6v19TUyQnuqjGcr6fN48h9KU+PTjp30wYpBW5lycpzcWF0aeDSfxMsi6vA33D6uDqKV1dY5gdfCQ==}
     engines: {node: '>=22.12.0'}
 
-  '@cqrs-ddd/mikro-orm@0.5.0':
-    resolution: {integrity: sha512-lTd4Gtr6LJW1crWdBTV5GVcgdF3e/e1arXVxTcjmIw7G4ziWpfu7ChrUk2duzmk487khwFuxMAYF7P7CLI4VjQ==}
+  '@cqrs-ddd/core@0.5.1':
+    resolution: {integrity: sha512-Q7jkjQUwBqV8ckNzsTN1sAVvgbZ2e1cgkvu9scoyowgE/r00rl3nAlO2J0d1G5YAurn6sWeukoZDB96x+dxzRQ==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/mikro-orm@0.5.1':
+    resolution: {integrity: sha512-gxiLtvLMWwt3boxDw/Ai83HNQA5+dSDv87O59ZO8D0Sao3CoeXJTzFA6FEtrZhIhMBgnxmlOXGe0ByHkQl9X7Q==}
     engines: {node: '>=22.17.0'}
     peerDependencies:
-      '@cqrs-ddd/core': ^0.5.0
+      '@cqrs-ddd/core': ^0.5.1
       '@mikro-orm/core': ^7.2.3
 
   '@cqrs-ddd/nestjs@0.5.0':
@@ -1061,17 +1065,49 @@ packages:
       '@cqrs-ddd/pipeline-zod':
         optional: true
 
-  '@cqrs-ddd/pipeline-audit@0.5.0':
-    resolution: {integrity: sha512-ulfEyDyP9OW6dT6NyLbViJgSnFz33ZCNlRadzLSeOlUHWXm+Wke3lSSRTn/MdZACRV5lNCJ97F9FU5LiVyvIHg==}
+  '@cqrs-ddd/nestjs@0.5.1':
+    resolution: {integrity: sha512-bdwTiXvJvFftL7lAbM+9TTXvnCvm+mY4PptJo1ASCUVldn5pEHoO+/OsYabOxC2/suFel7iJzBTzJx7v++7HqQ==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
-      '@cqrs-ddd/pipeline': ^0.5.0
+      '@cqrs-ddd/core': ^0.5.1
+      '@cqrs-ddd/pipeline': ^0.5.1
+      '@cqrs-ddd/pipeline-casl': ^0.5.1
+      '@cqrs-ddd/pipeline-correlation': ^0.5.1
+      '@cqrs-ddd/pipeline-feature-flags': ^0.5.1
+      '@cqrs-ddd/pipeline-idempotency': ^0.5.1
+      '@cqrs-ddd/pipeline-job-context': ^0.5.1
+      '@cqrs-ddd/pipeline-rate-limit': ^0.5.1
+      '@cqrs-ddd/pipeline-zod': ^0.5.1
+      '@nestjs/common': ^12.1.1
+      '@nestjs/core': ^12.1.1
+      '@nestjs/cqrs': ^12.1.0
+    peerDependenciesMeta:
+      '@cqrs-ddd/pipeline-casl':
+        optional: true
+      '@cqrs-ddd/pipeline-correlation':
+        optional: true
+      '@cqrs-ddd/pipeline-feature-flags':
+        optional: true
+      '@cqrs-ddd/pipeline-idempotency':
+        optional: true
+      '@cqrs-ddd/pipeline-job-context':
+        optional: true
+      '@cqrs-ddd/pipeline-rate-limit':
+        optional: true
+      '@cqrs-ddd/pipeline-zod':
+        optional: true
 
-  '@cqrs-ddd/pipeline-cache@0.5.0':
-    resolution: {integrity: sha512-IElvGVfl9Py2Er5hhDG4FH0bLOLxBqx6WF4nWLeOqQQGkbAZuoTc3Rb14uoR3E6Bc2b02LItLBLEVGOyS57tNw==}
+  '@cqrs-ddd/pipeline-audit@0.5.1':
+    resolution: {integrity: sha512-xupi+poPnj1Cl9LI2CRX5Y9+TuLNtk+gYS+qNHlKw1dHfXBe94QcJINFbXUH3QKaxn0oN7vBalppYr4RIStu+Q==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
-      '@cqrs-ddd/pipeline': ^0.5.0
+      '@cqrs-ddd/pipeline': ^0.5.1
+
+  '@cqrs-ddd/pipeline-cache@0.5.1':
+    resolution: {integrity: sha512-yHiuob39aRM/Kwss31fzEs2sNQQj9kgwH2CulEnxk3lJvOkPm/DNef8M2gKyuMeyEwBklPXprlxUj38PJiiMAQ==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/pipeline': ^0.5.1
       '@keyv/memcache': ^2.0.0
       '@keyv/postgres': ^2.0.0
       '@keyv/redis': ^4.0.0 || ^5.0.0
@@ -1095,15 +1131,26 @@ packages:
       '@casl/ability': ^7.0.0
       '@cqrs-ddd/pipeline': ^0.5.0
 
+  '@cqrs-ddd/pipeline-casl@0.5.1':
+    resolution: {integrity: sha512-j5o8IprfsF0fVWP+GPSGIRo58HmRWmQuM7eT/79LHwUS+f633+M/ybrCvFAEBOVyJJ4qK8+XXcadGXTinwdEMQ==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@casl/ability': ^7.0.0
+      '@cqrs-ddd/pipeline': ^0.5.1
+
   '@cqrs-ddd/pipeline-correlation@0.5.0':
     resolution: {integrity: sha512-52S7oucGt6xpMSRCj1CYdhLTWqrdP/PtKZNNHwDG3XZO6Syhg9gqY3Qad2SnZlDQH3MZ/vwFMrZRDOkZyi8RhQ==}
     engines: {node: '>=22.12.0'}
 
-  '@cqrs-ddd/pipeline-deadletter@0.5.0':
-    resolution: {integrity: sha512-ZtbY/UiS6FHVf2O+/skcFAG+2x0A3bgBT+awN/IAnwtwtd/ZVYy3AwvBVdPiikrSDDIWfLAvIs4QDPCCqIcoRg==}
+  '@cqrs-ddd/pipeline-correlation@0.5.1':
+    resolution: {integrity: sha512-mxrBFtB8Akm4EN0kFJK75XpvmpsNm2cRYtIgcigxFjvg2L5rEck/mKXGukO0dQCft2VL2dEWh39b67h+2oSUGg==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/pipeline-deadletter@0.5.1':
+    resolution: {integrity: sha512-9F6Ui9qvTmfouiUde0jHPyG2xBe+2ksq3K2ftm0Zp0I+RmIQgY0prlD65Juh1Gom2ABHL+kYlckapeeQkCt/6g==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
-      '@cqrs-ddd/pipeline': ^0.5.0
+      '@cqrs-ddd/pipeline': ^0.5.1
 
   '@cqrs-ddd/pipeline-feature-flags@0.5.0':
     resolution: {integrity: sha512-He03QpJ1aiH1lADEYZ98j52lE5fus/H+1uoI5iVjwXSIOsKdk1FSpR4a0Vyz0Gzb8QsAPKHk35AnWoB68aFK5w==}
@@ -1112,21 +1159,38 @@ packages:
       '@cqrs-ddd/pipeline': ^0.5.0
       '@openfeature/server-sdk': ^1.13.0
 
+  '@cqrs-ddd/pipeline-feature-flags@0.5.1':
+    resolution: {integrity: sha512-muuRlt0mMA08uh3+Kze2L+qAlBvsq1dkg4LhrfQFkAjjXQLTNawPCpsR57UGCUb9f3miHoNX0xpD10ZkKGaKBw==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/pipeline': ^0.5.1
+      '@openfeature/server-sdk': ^1.13.0
+
   '@cqrs-ddd/pipeline-idempotency@0.5.0':
     resolution: {integrity: sha512-l/GFSJOqaS3UeBr3svDcGtTXVqt3GSvOqPcxEpVspuGHkkVkTA2120Oqrdn2/VAD//bSPstNNwdECDUiB2M+7w==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
       '@cqrs-ddd/pipeline': ^0.5.0
 
+  '@cqrs-ddd/pipeline-idempotency@0.5.1':
+    resolution: {integrity: sha512-h/pC7nCjVKZIa6XvE52GJgYEv9yIDFGZ+GOx8Gc03G8ykYkrfOom6khcv+0nEvoJD6j5pw27mFk9ch9ivt8SpA==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/pipeline': ^0.5.1
+
   '@cqrs-ddd/pipeline-job-context@0.5.0':
     resolution: {integrity: sha512-WcpbBhAxqdI08dhuL0v+/sOvRX15d2mimGJqWl7NnixLRFHq8JM4j0iP+khLneOenoVl/ySmuJRfCYcjaBw1MQ==}
     engines: {node: '>=22.12.0'}
 
-  '@cqrs-ddd/pipeline-opentelemetry@0.5.0':
-    resolution: {integrity: sha512-mnuAkCKb8/kZ08zUBlkIsLXGCQ8j/7pDv+O7py2EPb6i1o0rsR6vLIdniQ5ihwhyiIpV4/RlIsy5MpKJoAzyhg==}
+  '@cqrs-ddd/pipeline-job-context@0.5.1':
+    resolution: {integrity: sha512-MD/4hAmRm8Tf/z9MUHV6VVcQ46kAaaMlfAiLX/+7moI23euOMS0UyRxjv4lJn9+AJu1R8w/W36HaUSmQlbKsNw==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/pipeline-opentelemetry@0.5.1':
+    resolution: {integrity: sha512-KiZTuy/R1Sj7QYkmf9/PzIffehUFL8Fi7dXHvosAEV7wthN7JKuagnUYL5KxIyK3gyQEjqsPU1vbDFB9Crw9eA==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
-      '@cqrs-ddd/pipeline': ^0.5.0
+      '@cqrs-ddd/pipeline': ^0.5.1
       '@opentelemetry/api': ^1.9.0
 
   '@cqrs-ddd/pipeline-rate-limit@0.5.0':
@@ -1135,15 +1199,21 @@ packages:
     peerDependencies:
       '@cqrs-ddd/pipeline': ^0.5.0
 
-  '@cqrs-ddd/pipeline-resilience@0.5.0':
-    resolution: {integrity: sha512-X1J10TkX472L2GlvYFivdjc8PW81uLtT1whY5ZHOtksWXGjwOn3RH0XK7XlNY3YZvBdonvUlxlm1lnwj97R9pg==}
+  '@cqrs-ddd/pipeline-rate-limit@0.5.1':
+    resolution: {integrity: sha512-C2gG+zDJFc+bLKnpM5FBvmkQFQTvDG/zOdH1O5dMQX3Yui0kRXHg93dbnaEk9Px4nOfwBAOxL33EKXNDV7rCmg==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
-      '@cqrs-ddd/pipeline': ^0.5.0
+      '@cqrs-ddd/pipeline': ^0.5.1
+
+  '@cqrs-ddd/pipeline-resilience@0.5.1':
+    resolution: {integrity: sha512-krEJYt84Wn7d8viYRxo7yqfoqdTWEtn11wZPdZAWr2bmdMJCE3kELjI/ulDNi4zm1HxZS0Y5F1cRuUV/WRd6Kg==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/pipeline': ^0.5.1
       cockatiel: ^4.0.0
 
-  '@cqrs-ddd/pipeline-tenant@0.5.0':
-    resolution: {integrity: sha512-Nm/voIikmjX7XII5TFBQ108rhnU8ew0rK2DcsvWLCUi9fA3EpA4bzcxF+rfbv/meg4xBbqtzlAs0tJitHIUtQw==}
+  '@cqrs-ddd/pipeline-tenant@0.5.1':
+    resolution: {integrity: sha512-UHawYWGtwUyz2iUneHXZTAy7Ve3aI3gB3Nj7bdUmLObXRlA3SCkbTVXnThnniWhx1WC9e7rJ+cy2HYQfKKogBQ==}
     engines: {node: '>=22.12.0'}
 
   '@cqrs-ddd/pipeline-zod@0.5.0':
@@ -1153,20 +1223,43 @@ packages:
       '@cqrs-ddd/pipeline': ^0.5.0
       zod: ^4.3.0
 
+  '@cqrs-ddd/pipeline-zod@0.5.1':
+    resolution: {integrity: sha512-/yCM3RLUU1cz4lHLLhExEYet3maSxYq64F35tH7hgP/Vwm5ttsFWDZ4sLJjM6495IcuhhrLu96Y9FtJV+ZuCjA==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/pipeline': ^0.5.1
+      zod: ^4.3.0
+
   '@cqrs-ddd/pipeline@0.5.0':
     resolution: {integrity: sha512-gyJp4iw9kVMtU3ZsdzuoN2gCDzmGjb84YFC+bKDSW7xruK5lzfI8lH7VpnwXOnYPbzR3WS3YT+bMSkZUn3aspw==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/pipeline@0.5.1':
+    resolution: {integrity: sha512-rhznFRUXpAHnHZ+pcYSIFIOvo6KYkkqSs9855jSQg2OOJnjpvD3k+jofDCNQKmuFSVAs1Y4FKbNz0HPtZeNujw==}
     engines: {node: '>=22.12.0'}
 
   '@cqrs-ddd/safe-stringify@0.5.0':
     resolution: {integrity: sha512-FaIqroF6OZOGsCayxOiqIaQ5RH/SiUiQJJQb949HaYOnrRvh2+TEryV4iblZHsQ7AzBQ41nKLRZ00M9VyFM0aQ==}
     engines: {node: '>=22.12.0'}
 
+  '@cqrs-ddd/safe-stringify@0.5.1':
+    resolution: {integrity: sha512-73MD+zQdWnYINF5ZppSj+6pp/so848+APNzT6hNK4pI6AZ9f31qBaE+fYeVQIqnvTwPb8yHQu1MbPiqOjNw+yA==}
+    engines: {node: '>=22.12.0'}
+
   '@cqrs-ddd/untyped@0.5.0':
     resolution: {integrity: sha512-/qQ2K3THPs/JUH7UuWOTtXC59Xw45O6B9BVT/PuhfooUFSHTtpq3WwfGG23IPwF/IMT3kZfKAVrizVcqtvfmEA==}
     engines: {node: '>=22.12.0'}
 
+  '@cqrs-ddd/untyped@0.5.1':
+    resolution: {integrity: sha512-73AMkVT/oqSwIuLI5kuGoOC7gChrBfGzf5tMjMMoU8Aq0xcgWKWJtJKFEoq2iuVqSdgwWLgzJ4qNYbKooVA1mw==}
+    engines: {node: '>=22.12.0'}
+
   '@cqrs-ddd/uuidv7@0.5.0':
     resolution: {integrity: sha512-a7vz8PGAdgSSRU3hJ5gOA279go0fiktEqSu/DTuN1qK8fnQ74gTPHvhnnSpbnCBOvLKCKUYnM0+wpvfFhyk/CQ==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/uuidv7@0.5.1':
+    resolution: {integrity: sha512-OeEXlTve9Z2QkBN6HN+4KHKBZLVGgJKN8o9o5NMObu6yVk8Tju87vvqzt12TjcNRmXGbxNIgIDHJW5CEfjqVBQ==}
     engines: {node: '>=22.12.0'}
 
   '@ctrl/tinycolor@4.2.1':
@@ -1176,6 +1269,7 @@ packages:
   '@dev.fast/review@0.2.14':
     resolution: {integrity: sha512-K+NGPRRIS/xFvDIbVlP9g3lFhjIW4nzRhy+93Sty9nRTbVhiOlT55xmGY8DjW8yx7GL5t/IRD8k1EPLH4+Al5w==}
     engines: {node: '>=24 <25'}
+    deprecated: Renamed to @dev.fast/whiteboard. Install @dev.fast/whiteboard instead.
     hasBin: true
 
   '@emnapi/core@1.11.1':
@@ -2347,6 +2441,7 @@ packages:
   '@opentelemetry/propagator-jaeger@2.11.0':
     resolution: {integrity: sha512-RUOqgoIqXOPQTOhpBrs07Y8sBlxVoLY5Fka6ueZ0prW+k6fWQsba/nHDY4gm+gmfuwtRqbX5Y9YKhDvktjbIqQ==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Package no longer supported. See https://github.com/open-telemetry/opentelemetry-js/pull/7077
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
@@ -2377,12 +2472,14 @@ packages:
   '@opentelemetry/sdk-trace-base@2.11.0':
     resolution: {integrity: sha512-H19x/TX/LZdqiYOjM7fqtSxwlplC5pgelavqbQdHbhdq0q/AI/TGkM2dfGuuynTXmJPeF2HoZVoPDu+TGoW78A==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-node@2.11.0':
     resolution: {integrity: sha512-CuvCMJmZxswhNLlM2LfuLOW3h3fZujA4hsG4B+Sz4dX2zvaXO8Ng74cnDHWD64gLszTlhiG3c0iNUjj4g+0/sA==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
@@ -6445,9 +6542,14 @@ snapshots:
       '@cqrs-ddd/safe-stringify': 0.5.0
       '@cqrs-ddd/uuidv7': 0.5.0
 
-  '@cqrs-ddd/mikro-orm@0.5.0(@cqrs-ddd/core@0.5.0)(@mikro-orm/core@7.2.3)':
+  '@cqrs-ddd/core@0.5.1':
     dependencies:
-      '@cqrs-ddd/core': 0.5.0
+      '@cqrs-ddd/safe-stringify': 0.5.1
+      '@cqrs-ddd/uuidv7': 0.5.1
+
+  '@cqrs-ddd/mikro-orm@0.5.1(@cqrs-ddd/core@0.5.1)(@mikro-orm/core@7.2.3)':
+    dependencies:
+      '@cqrs-ddd/core': 0.5.1
       '@mikro-orm/core': 7.2.3
 
   '@cqrs-ddd/nestjs@0.5.0(@cqrs-ddd/core@0.5.0)(@cqrs-ddd/pipeline-casl@0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-correlation@0.5.0)(@cqrs-ddd/pipeline-feature-flags@0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0)))(@cqrs-ddd/pipeline-idempotency@0.5.0(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-job-context@0.5.0)(@cqrs-ddd/pipeline-rate-limit@0.5.0(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-zod@0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5))(@cqrs-ddd/pipeline@0.5.0)(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))':
@@ -6466,16 +6568,32 @@ snapshots:
       '@cqrs-ddd/pipeline-rate-limit': 0.5.0(@cqrs-ddd/pipeline@0.5.0)
       '@cqrs-ddd/pipeline-zod': 0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5)
 
-  '@cqrs-ddd/pipeline-audit@0.5.0(@cqrs-ddd/pipeline@0.5.0)':
+  '@cqrs-ddd/nestjs@0.5.1(@cqrs-ddd/core@0.5.1)(@cqrs-ddd/pipeline-casl@0.5.1(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.1))(@cqrs-ddd/pipeline-correlation@0.5.1)(@cqrs-ddd/pipeline-feature-flags@0.5.1(@cqrs-ddd/pipeline@0.5.1)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0)))(@cqrs-ddd/pipeline-idempotency@0.5.1(@cqrs-ddd/pipeline@0.5.1))(@cqrs-ddd/pipeline-job-context@0.5.1)(@cqrs-ddd/pipeline-rate-limit@0.5.1(@cqrs-ddd/pipeline@0.5.1))(@cqrs-ddd/pipeline-zod@0.5.1(@cqrs-ddd/pipeline@0.5.1)(zod@4.6.5))(@cqrs-ddd/pipeline@0.5.1)(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))':
     dependencies:
-      '@cqrs-ddd/pipeline': 0.5.0
-      '@cqrs-ddd/safe-stringify': 0.5.0
-      '@cqrs-ddd/uuidv7': 0.5.0
+      '@cqrs-ddd/core': 0.5.1
+      '@cqrs-ddd/pipeline': 0.5.1
+      '@nestjs/common': 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@nestjs/core': 12.1.1(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/cqrs': 12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+    optionalDependencies:
+      '@cqrs-ddd/pipeline-casl': 0.5.1(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.1)
+      '@cqrs-ddd/pipeline-correlation': 0.5.1
+      '@cqrs-ddd/pipeline-feature-flags': 0.5.1(@cqrs-ddd/pipeline@0.5.1)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))
+      '@cqrs-ddd/pipeline-idempotency': 0.5.1(@cqrs-ddd/pipeline@0.5.1)
+      '@cqrs-ddd/pipeline-job-context': 0.5.1
+      '@cqrs-ddd/pipeline-rate-limit': 0.5.1(@cqrs-ddd/pipeline@0.5.1)
+      '@cqrs-ddd/pipeline-zod': 0.5.1(@cqrs-ddd/pipeline@0.5.1)(zod@4.6.5)
 
-  '@cqrs-ddd/pipeline-cache@0.5.0(@cqrs-ddd/pipeline@0.5.0)(@keyv/memcache@2.0.2(keyv@5.6.0))(@keyv/postgres@2.2.3(keyv@5.6.0))(@keyv/redis@5.1.6(@node-rs/xxhash@1.7.7)(@opentelemetry/api@1.9.1)(keyv@5.6.0))(@keyv/sqlite@4.0.8(keyv@5.6.0)(supports-color@10.2.2))(cache-manager@7.2.9)(keyv@5.6.0)':
+  '@cqrs-ddd/pipeline-audit@0.5.1(@cqrs-ddd/pipeline@0.5.1)':
     dependencies:
-      '@cqrs-ddd/pipeline': 0.5.0
-      '@cqrs-ddd/safe-stringify': 0.5.0
+      '@cqrs-ddd/pipeline': 0.5.1
+      '@cqrs-ddd/safe-stringify': 0.5.1
+      '@cqrs-ddd/uuidv7': 0.5.1
+
+  '@cqrs-ddd/pipeline-cache@0.5.1(@cqrs-ddd/pipeline@0.5.1)(@keyv/memcache@2.0.2(keyv@5.6.0))(@keyv/postgres@2.2.3(keyv@5.6.0))(@keyv/redis@5.1.6(@node-rs/xxhash@1.7.7)(@opentelemetry/api@1.9.1)(keyv@5.6.0))(@keyv/sqlite@4.0.8(keyv@5.6.0)(supports-color@10.2.2))(cache-manager@7.2.9)(keyv@5.6.0)':
+    dependencies:
+      '@cqrs-ddd/pipeline': 0.5.1
+      '@cqrs-ddd/safe-stringify': 0.5.1
       cache-manager: 7.2.9
       keyv: 5.6.0
     optionalDependencies:
@@ -6490,20 +6608,36 @@ snapshots:
       '@cqrs-ddd/pipeline': 0.5.0
       '@cqrs-ddd/safe-stringify': 0.5.0
 
+  '@cqrs-ddd/pipeline-casl@0.5.1(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.1)':
+    dependencies:
+      '@casl/ability': 7.0.1
+      '@cqrs-ddd/pipeline': 0.5.1
+      '@cqrs-ddd/safe-stringify': 0.5.1
+
   '@cqrs-ddd/pipeline-correlation@0.5.0':
     dependencies:
       '@cqrs-ddd/untyped': 0.5.0
       '@cqrs-ddd/uuidv7': 0.5.0
 
-  '@cqrs-ddd/pipeline-deadletter@0.5.0(@cqrs-ddd/pipeline@0.5.0)':
+  '@cqrs-ddd/pipeline-correlation@0.5.1':
     dependencies:
-      '@cqrs-ddd/pipeline': 0.5.0
-      '@cqrs-ddd/safe-stringify': 0.5.0
-      '@cqrs-ddd/uuidv7': 0.5.0
+      '@cqrs-ddd/untyped': 0.5.1
+      '@cqrs-ddd/uuidv7': 0.5.1
+
+  '@cqrs-ddd/pipeline-deadletter@0.5.1(@cqrs-ddd/pipeline@0.5.1)':
+    dependencies:
+      '@cqrs-ddd/pipeline': 0.5.1
+      '@cqrs-ddd/safe-stringify': 0.5.1
+      '@cqrs-ddd/uuidv7': 0.5.1
 
   '@cqrs-ddd/pipeline-feature-flags@0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))':
     dependencies:
       '@cqrs-ddd/pipeline': 0.5.0
+      '@openfeature/server-sdk': 1.23.0(@openfeature/core@1.12.0)
+
+  '@cqrs-ddd/pipeline-feature-flags@0.5.1(@cqrs-ddd/pipeline@0.5.1)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))':
+    dependencies:
+      '@cqrs-ddd/pipeline': 0.5.1
       '@openfeature/server-sdk': 1.23.0(@openfeature/core@1.12.0)
 
   '@cqrs-ddd/pipeline-idempotency@0.5.0(@cqrs-ddd/pipeline@0.5.0)':
@@ -6512,12 +6646,20 @@ snapshots:
       '@cqrs-ddd/safe-stringify': 0.5.0
       '@cqrs-ddd/untyped': 0.5.0
 
+  '@cqrs-ddd/pipeline-idempotency@0.5.1(@cqrs-ddd/pipeline@0.5.1)':
+    dependencies:
+      '@cqrs-ddd/pipeline': 0.5.1
+      '@cqrs-ddd/safe-stringify': 0.5.1
+      '@cqrs-ddd/untyped': 0.5.1
+
   '@cqrs-ddd/pipeline-job-context@0.5.0': {}
 
-  '@cqrs-ddd/pipeline-opentelemetry@0.5.0(@cqrs-ddd/pipeline@0.5.0)(@opentelemetry/api@1.9.1)':
+  '@cqrs-ddd/pipeline-job-context@0.5.1': {}
+
+  '@cqrs-ddd/pipeline-opentelemetry@0.5.1(@cqrs-ddd/pipeline@0.5.1)(@opentelemetry/api@1.9.1)':
     dependencies:
-      '@cqrs-ddd/pipeline': 0.5.0
-      '@cqrs-ddd/untyped': 0.5.0
+      '@cqrs-ddd/pipeline': 0.5.1
+      '@cqrs-ddd/untyped': 0.5.1
       '@opentelemetry/api': 1.9.1
 
   '@cqrs-ddd/pipeline-rate-limit@0.5.0(@cqrs-ddd/pipeline@0.5.0)':
@@ -6525,17 +6667,28 @@ snapshots:
       '@cqrs-ddd/pipeline': 0.5.0
       '@cqrs-ddd/safe-stringify': 0.5.0
 
-  '@cqrs-ddd/pipeline-resilience@0.5.0(@cqrs-ddd/pipeline@0.5.0)(cockatiel@4.0.0)':
+  '@cqrs-ddd/pipeline-rate-limit@0.5.1(@cqrs-ddd/pipeline@0.5.1)':
     dependencies:
-      '@cqrs-ddd/pipeline': 0.5.0
+      '@cqrs-ddd/pipeline': 0.5.1
+      '@cqrs-ddd/safe-stringify': 0.5.1
+
+  '@cqrs-ddd/pipeline-resilience@0.5.1(@cqrs-ddd/pipeline@0.5.1)(cockatiel@4.0.0)':
+    dependencies:
+      '@cqrs-ddd/pipeline': 0.5.1
       cockatiel: 4.0.0
 
-  '@cqrs-ddd/pipeline-tenant@0.5.0': {}
+  '@cqrs-ddd/pipeline-tenant@0.5.1': {}
 
   '@cqrs-ddd/pipeline-zod@0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5)':
     dependencies:
       '@cqrs-ddd/pipeline': 0.5.0
       '@cqrs-ddd/untyped': 0.5.0
+      zod: 4.6.5
+
+  '@cqrs-ddd/pipeline-zod@0.5.1(@cqrs-ddd/pipeline@0.5.1)(zod@4.6.5)':
+    dependencies:
+      '@cqrs-ddd/pipeline': 0.5.1
+      '@cqrs-ddd/untyped': 0.5.1
       zod: 4.6.5
 
   '@cqrs-ddd/pipeline@0.5.0':
@@ -6544,11 +6697,23 @@ snapshots:
       '@cqrs-ddd/untyped': 0.5.0
       '@cqrs-ddd/uuidv7': 0.5.0
 
+  '@cqrs-ddd/pipeline@0.5.1':
+    dependencies:
+      '@cqrs-ddd/safe-stringify': 0.5.1
+      '@cqrs-ddd/untyped': 0.5.1
+      '@cqrs-ddd/uuidv7': 0.5.1
+
   '@cqrs-ddd/safe-stringify@0.5.0': {}
+
+  '@cqrs-ddd/safe-stringify@0.5.1': {}
 
   '@cqrs-ddd/untyped@0.5.0': {}
 
+  '@cqrs-ddd/untyped@0.5.1': {}
+
   '@cqrs-ddd/uuidv7@0.5.0': {}
+
+  '@cqrs-ddd/uuidv7@0.5.1': {}
 
   '@ctrl/tinycolor@4.2.1': {}
 

@@ -27,10 +27,7 @@
     "docs:dev": "pnpm --filter @nestjs-pipeline/ddd-api build && pnpm --filter @nestjs-pipeline/ddd-api openapi && pnpm --filter @nestjs-pipeline/docs dev",
     "check": "biome check .",
     "format": "biome check --write .",
-    "lint:persistence": "biome lint --only=plugin .",
-    "context:update": "python3 scripts/update-claude-snapshot.py",
-    "context:check": "python3 scripts/update-claude-snapshot.py --check",
-    "context:validate": "python3 scripts/validate-claude-context.py"
+    "lint:persistence": "biome lint --only=plugin ."
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
