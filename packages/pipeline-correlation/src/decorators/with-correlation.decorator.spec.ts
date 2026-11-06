@@ -545,6 +545,41 @@ describe('CorrelationFrom.kafka', () => {
     await h.handle({}, fakeKafkaContext({ 'x-request-id': 'custom-kafka' }));
     expect(captured).toBe('custom-kafka');
   });
+
+  it('replaces a header value that fails the built-in check', async () => {
+    let captured: string | undefined;
+
+    class Handler {
+      @WithCorrelation(CorrelationFrom.kafka())
+      async handle(_data: any, _ctx: any) {
+        captured = getCorrelationId();
+      }
+    }
+
+    const injected = 'kafka-1\r\nlevel=error msg=forged';
+    await new Handler().handle(
+      {},
+      fakeKafkaContext({ 'x-correlation-id': Buffer.from(injected) }),
+    );
+    expect(captured).not.toBe(injected);
+    expect(captured).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});
+
+describe('WithCorrelation — malformed extracted values', () => {
+  it('keeps the current id when the extractor returns a non-string', async () => {
+    let captured: string | undefined;
+
+    class Handler {
+      @WithCorrelation({ extract: () => 42 as never })
+      async handle() {
+        captured = getCorrelationId();
+      }
+    }
+
+    await runWithCorrelationId('outer-id', () => new Handler().handle());
+    expect(captured).toBe('outer-id');
+  });
 });
 
 describe('CorrelationFrom.nats', () => {

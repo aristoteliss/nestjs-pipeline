@@ -20,6 +20,7 @@ Bull/BullMQ, RabbitMQ, Kafka, NATS, gRPC, cron jobs και οποιοδήποτ�
 - [Χαρακτηριστικά](#features)
 - [Γρήγορη εκκίνηση](#quick-start)
 - [HTTP](#http)
+- [Ο ενσωματωμένος έλεγχος](#the-built-in-check)
 - [Queue consumers και άλλα σημεία εισόδου](#queue-consumers-and-other-entry-points)
 - [Αναφορά API](#api-reference)
 - [Μετάβαση από την έκδοση 0.1.x](#migrating-from-01x)
@@ -151,7 +152,8 @@ async handle(@Payload() data: any, @Ctx() ctx: KafkaContext) { }
 Διαβάζει το header `x-correlation-id`, αποδέχεται την τιμή μόνο όταν είναι το πολύ 128
 χαρακτήρες και ταιριάζει με το `DEFAULT_CORRELATION_ID_PATTERN`, και διαφορετικά παράγει ένα UUIDv7.
 Αντηχεί το επιλεγμένο ID στο header απάντησης με το ίδιο όνομα και εκτελεί το υπόλοιπο
-αίτημα μέσα σε αυτό.
+αίτημα μέσα σε αυτό. Καμία επιλογή δεν το κάνει να αποδεχτεί ID που αποτυγχάνει στον
+[ενσωματωμένο έλεγχο](#the-built-in-check).
 
 ```typescript
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
@@ -198,7 +200,7 @@ export class AppModule implements NestModule {
 | `acceptIncoming` | `true` | Το `false` αγνοεί τα IDs των clients και παράγει πάντοτε ένα νέο |
 | `trimIncoming` | `false` | Αφαίρεση κενών διαστημάτων πριν από την επικύρωση |
 | `maxLength` | `128` | Μεγαλύτερα IDs αντικαθίστανται· πρέπει να είναι θετικός ασφαλής ακέραιος (safe integer) |
-| `validateIncoming` | Έλεγχος `DEFAULT_CORRELATION_ID_PATTERN` | Αντικαθιστά τον έλεγχο pattern· επιστροφή `false` ή έγερση εξαίρεσης απορρίπτει το ID. Το `maxLength` εξακολουθεί να ισχύει. |
+| `validateIncoming` | Έλεγχος `DEFAULT_CORRELATION_ID_PATTERN` | Αντικαθιστά τον έλεγχο pattern· επιστροφή `false` ή έγερση εξαίρεσης απορρίπτει το ID. Το `maxLength` και ο [ενσωματωμένος έλεγχος](#the-built-in-check) εξακολουθούν να ισχύουν. |
 
 Εξερχόμενες HTTP κλήσεις προωθούν το ID με το `correlationHeaders()`:
 
@@ -206,11 +208,37 @@ export class AppModule implements NestModule {
 await fetch(url, { headers: { ...correlationHeaders(), 'content-type': 'application/json' } });
 ```
 
+## Ο ενσωματωμένος έλεγχος <a id="the-built-in-check"></a>
+
+Από την έκδοση 0.4.4, κάθε εγγραφή στο correlation store ελέγχει πρώτα το ID:
+`HttpCorrelationMiddleware`, `runWithCorrelationId`, `@WithCorrelation`, κάθε preset του
+`CorrelationFrom` και `correlationSource.run`. Ένα ID περνά τον έλεγχο όταν είναι μη κενό
+string από εκτυπώσιμους χαρακτήρες ASCII (0x20 έως 0x7E) που ούτε αρχίζει ούτε τελειώνει με
+κενό. Καμία επιλογή δεν απενεργοποιεί τον έλεγχο, και το `validateIncoming` βλέπει μόνο IDs
+που τον περνούν.
+
+Ένα ID που αποτυγχάνει στον έλεγχο θεωρείται ότι λείπει: τα `runWithCorrelationId` και
+`@WithCorrelation` κρατούν το τρέχον ID ή παράγουν νέο, το middleware παράγει νέο, και το
+`correlationSource.run` εκτελείται χωρίς ID. Ένα τέτοιο ID δεν μπορεί να είναι έγκυρο σε
+καμία εφαρμογή, επειδή δεν θα ταξίδευε αμετάβλητο μεταξύ υπηρεσιών:
+
+- Οι χαρακτήρες ελέγχου (CR, LF, tab, NUL) επιτρέπουν log injection και header injection.
+- Τα HTTP και gRPC αφαιρούν τα κενά στην αρχή και στο τέλος.
+- Τα text metadata του gRPC απορρίπτουν χαρακτήρες εκτός ASCII, και το Node αποκωδικοποιεί
+  τα bytes των εισερχόμενων headers ως Latin-1, οπότε ένα UTF-8 ID αλλάζει στο πρώτο hop.
+- Μια τιμή που δεν είναι string, όπως ένας αριθμός από custom extractor, δεν είναι ID.
+
+Ο έλεγχος δεν περιορίζει το μήκος και δέχεται χαρακτήρες όπως `<`, `"` και κενά στο εσωτερικό
+του ID. Αυτοί είναι κανόνες της εφαρμογής: `maxLength` και `validateIncoming` για το HTTP,
+`correlationSource.accepts(id)` για τα άλλα σημεία εισόδου. Μια εφαρμογή που εμφανίζει το ID
+σε HTML εξακολουθεί να το κάνει escape.
+
 ## Queue consumers και άλλα σημεία εισόδου <a id="queue-consumers-and-other-entry-points"></a>
 
 Το `@WithCorrelation()` και το `runWithCorrelationId(id, fn)` επιτελούν το ίδιο έργο: εκτελούν την εργασία
-μέσα στο δεδομένο ID, ή μέσα στο τρέχον ή σε ένα νέο ID όταν το ID λείπει. Κανένα από τα δύο
-δεν επικυρώνει το ID· χρησιμοποιήστε το `correlationSource.accepts(id)` για IDs από μη έμπιστες πηγές.
+μέσα στο δεδομένο ID, ή μέσα στο τρέχον ή σε ένα νέο ID όταν το ID λείπει ή αποτυγχάνει στον
+[ενσωματωμένο έλεγχο](#the-built-in-check). Κανένα από τα δύο δεν εφαρμόζει τον προεπιλεγμένο
+κανόνα μήκους και χαρακτήρων· χρησιμοποιήστε το `correlationSource.accepts(id)` για IDs από μη έμπιστες πηγές.
 
 ```typescript
 import { Processor, WorkerHost } from '@nestjs/bullmq';
@@ -266,7 +294,7 @@ async hourlySync() {}
 | Export | Τύπος | Περιγραφή |
 |--------|------|-------------|
 | `getCorrelationId()` | `() => string` | Ανάγνωση του τρέχοντος correlation ID, ή παραγωγή ενός UUIDv7 όταν δεν υπάρχει κανένα |
-| `runWithCorrelationId(id, fn)` | `(id: string \| undefined, fn: () => T) => T` | Εκτέλεση ενός callback μέσα σε ένα συμπληρωμένο correlation context |
+| `runWithCorrelationId(id, fn)` | `(id: string \| undefined, fn: () => T) => T` | Εκτέλεση ενός callback μέσα σε ένα συμπληρωμένο correlation context· ένα ID που λείπει ή είναι κακοσχηματισμένο αντικαθίσταται από το τρέχον ή από νέο |
 | `addCorrelationId(data)` | `(data: T) => WithCorrelationId<T>` | Προσθήκη σφραγίδας του τρέχοντος ID σε ένα plain-object payload· εγείρει `TypeError` διαφορετικά |
 | `WithCorrelationId<T>` | Type | `T & { correlationId: string }` |
 | `correlationHeaders(key?)` | `(key?: string) => Record<string, string>` | Επιστροφή αντικειμένου headers για transports βασισμένα σε headers |
@@ -277,7 +305,7 @@ async hourlySync() {}
 | `CORRELATION_OPTIONS`, `CorrelationOptions` | Token, type | Ρύθμιση παραμέτρων middleware |
 | `DEFAULT_CORRELATION_HEADER` | Constant | `'x-correlation-id'` |
 | `DEFAULT_CORRELATION_ID_MAX_LENGTH`, `DEFAULT_CORRELATION_ID_PATTERN` | Constants | Προεπιλεγμένο όριο μήκους εισερχόμενου ID (128) και σύνολο χαρακτήρων |
-| `correlationSource` | Object | `{ current, run, create, accepts }` πάνω στο correlation store, για τα `PipelineModule.forRoot({ sources })` και `JobContextModule.forRoot`· το `current()` δεν παράγει τίποτα, το `create()` είναι το μοναδικό σημείο όπου κατασκευάζεται νέο ID, και το `accepts(id)` εφαρμόζει τον προεπιλεγμένο κανόνα μήκους και χαρακτήρων σε ένα ID που παραλαμβάνεται εξωτερικά |
+| `correlationSource` | Object | `{ current, run, create, accepts }` πάνω στο correlation store, για τα `PipelineModule.forRoot({ sources })` και `JobContextModule.forRoot`· το `current()` δεν παράγει τίποτα, το `run(id, fn)` εκτελείται χωρίς ID όταν το `id` αποτυγχάνει στον ενσωματωμένο έλεγχο, το `create()` είναι το μοναδικό σημείο όπου κατασκευάζεται νέο ID, και το `accepts(id)` εφαρμόζει τον προεπιλεγμένο κανόνα μήκους και χαρακτήρων σε ένα ID που παραλαμβάνεται εξωτερικά |
 
 ### Ενσωμάτωση στο pipeline <a id="pipeline-integration"></a>
 
@@ -358,8 +386,8 @@ context.correlationId = request.headers['x-request-id'];
 
 **Τα εισερχόμενα HTTP IDs επικυρώνονται.** Το `HttpCorrelationMiddleware` πλέον αντικαθιστά ένα ID μεγαλύτερο
 από 128 χαρακτήρες ή εκτός του `DEFAULT_CORRELATION_ID_PATTERN`, μετατρέπει σε πεζά (lowercases) το διαμορφωμένο
-header, εγείρει εξαίρεση σε μη έγκυρο όνομα header, και ορίζει το ID στην απάντηση. Για να συνεχίσετε
-να αποδέχεστε οποιαδήποτε μη κενή τιμή:
+header, εγείρει εξαίρεση σε μη έγκυρο όνομα header, και ορίζει το ID στην απάντηση. Για να αποδέχεστε
+οποιαδήποτε τιμή περνά τον [ενσωματωμένο έλεγχο](#the-built-in-check):
 
 ```typescript
 { provide: CORRELATION_OPTIONS, useValue: { maxLength: 4096, validateIncoming: () => true } }

@@ -5,6 +5,7 @@ import { Inject, Injectable, NestMiddleware, Optional } from '@nestjs/common';
 import { DEFAULT_CORRELATION_HEADER } from '../constants/correlation.constants.js';
 import {
   getCorrelationId,
+  isPortableCorrelationId,
   runWithCorrelationId,
 } from '../correlation.store.js';
 import {
@@ -32,7 +33,9 @@ const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
  *
  * An incoming ID longer than 128 characters or outside the default character
  * set is replaced by a local ID. `acceptIncoming`, `trimIncoming`, `maxLength`
- * and `validateIncoming` adjust that policy.
+ * and `validateIncoming` adjust that policy. None of them lets through an ID
+ * that is not printable ASCII or that starts or ends with a space: that check
+ * applies to every write to the correlation store.
  *
  * @example Register for all HTTP routes
  * ```ts
@@ -110,7 +113,7 @@ export class HttpCorrelationMiddleware implements NestMiddleware {
     }
 
     const value = this.trimIncoming ? raw.trim() : raw;
-    if (value.length === 0) return undefined;
+    if (!isPortableCorrelationId(value)) return undefined;
 
     if (value.length > this.maxLength) return undefined;
 

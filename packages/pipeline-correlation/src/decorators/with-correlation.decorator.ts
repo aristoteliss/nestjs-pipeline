@@ -119,7 +119,7 @@ function getByPath(obj: unknown, path: string): string | undefined {
  * It extracts the correlation ID from the method arguments (via `path` or
  * `extract`) and runs the method inside {@link runWithCorrelationId}, which
  * keeps the current id, or makes one with `correlationSource.create()`, when
- * no ID is found.
+ * no ID is found or the ID is not printable ASCII without surrounding spaces.
  *
  * **⚠️ Array payloads:**
  * When using the default dot-path extraction, the first argument must be an
