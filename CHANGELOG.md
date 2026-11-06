@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.4
+
+Only `@nestjs-pipeline/correlation` is released at 0.4.4, a fix release. The other 13
+`@nestjs-pipeline/*` packages stay at 0.4.3, and the five `@cqrs-ddd/*` packages of this
+repository at 0.4.2.
+
+### Fixed
+
+- `@nestjs-pipeline/correlation`: every write to the correlation store checks the ID, and
+  no option turns the check off. An ID that is not a non-empty string of printable ASCII
+  (0x20 to 0x7E), or that starts or ends with a space, is treated as missing:
+  `runWithCorrelationId`, `@WithCorrelation` and every `CorrelationFrom` preset keep the
+  current ID or generate one, and `correlationSource.run` runs without one. Before, they
+  stored any value they received, so an ID from a queue message or a gRPC or Kafka header
+  could carry CR/LF into the logs and the response headers. `HttpCorrelationMiddleware`
+  applies the same check before `validateIncoming`, which could accept such an ID before.
+  The default HTTP rule (at most 128 characters matching `DEFAULT_CORRELATION_ID_PATTERN`)
+  is unchanged.
+
 ## 0.4.3
 
 The 14 `@nestjs-pipeline/*` packages are released at 0.4.3, a README-only release: the code,

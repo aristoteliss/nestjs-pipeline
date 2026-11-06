@@ -20,6 +20,7 @@ Part of the [@nestjs-pipeline](/nestjs-pipeline/overview/) monorepo.
 - [Features](#features)
 - [Quick Start](#quick-start)
 - [HTTP](#http)
+- [The built-in check](#the-built-in-check)
 - [Queue consumers and other entry points](#queue-consumers-and-other-entry-points)
 - [API Reference](#api-reference)
 - [Migrating from 0.1.x](#migrating-from-01x)
@@ -152,7 +153,8 @@ Register `HttpCorrelationMiddleware` explicitly; `PipelineModule` does not insta
 It reads the `x-correlation-id` header, accepts the value only when it is at most 128
 characters and matches `DEFAULT_CORRELATION_ID_PATTERN`, and otherwise generates a UUIDv7.
 It echoes the chosen ID in the response header of the same name and runs the rest of the
-request inside it.
+request inside it. No option makes it accept an ID that fails
+[the built-in check](#the-built-in-check).
 
 ```typescript
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
@@ -199,7 +201,7 @@ export class AppModule implements NestModule {
 | `acceptIncoming` | `true` | `false` ignores client IDs and always generates one |
 | `trimIncoming` | `false` | Trim whitespace before validation |
 | `maxLength` | `128` | Longer IDs are replaced; must be a positive safe integer |
-| `validateIncoming` | `DEFAULT_CORRELATION_ID_PATTERN` test | Replaces the pattern check; returning `false` or throwing rejects the ID. `maxLength` still applies. |
+| `validateIncoming` | `DEFAULT_CORRELATION_ID_PATTERN` test | Replaces the pattern check; returning `false` or throwing rejects the ID. `maxLength` and [the built-in check](#the-built-in-check) still apply. |
 
 Outgoing HTTP calls forward the ID with `correlationHeaders()`:
 
@@ -207,11 +209,36 @@ Outgoing HTTP calls forward the ID with `correlationHeaders()`:
 await fetch(url, { headers: { ...correlationHeaders(), 'content-type': 'application/json' } });
 ```
 
+## The built-in check
+
+From 0.4.4, every write to the correlation store checks the ID first:
+`HttpCorrelationMiddleware`, `runWithCorrelationId`, `@WithCorrelation`, every
+`CorrelationFrom` preset and `correlationSource.run`. An ID passes when it is a non-empty
+string of printable ASCII (0x20 to 0x7E) that neither starts nor ends with a space. No
+option turns the check off, and `validateIncoming` sees only IDs that pass it.
+
+An ID that fails the check is treated as missing: `runWithCorrelationId` and
+`@WithCorrelation` keep the current ID or generate one, the middleware generates one, and
+`correlationSource.run` runs without one. Such an ID cannot be valid in any application,
+because it would not travel unchanged between services:
+
+- Control characters (CR, LF, tab, NUL) allow log and header injection.
+- HTTP and gRPC strip leading and trailing spaces.
+- gRPC text metadata rejects non-ASCII characters, and Node decodes incoming header bytes
+  as Latin-1, so a UTF-8 ID changes on its first hop.
+- A value that is not a string, such as a number from a custom extractor, is not an ID.
+
+The check does not limit the length, and it accepts characters such as `<`, `"` and inner
+spaces. Those are the application's rules: `maxLength` and `validateIncoming` for HTTP,
+`correlationSource.accepts(id)` for other entry points. An application that renders the ID
+in HTML still escapes it.
+
 ## Queue consumers and other entry points
 
 `@WithCorrelation()` and `runWithCorrelationId(id, fn)` do the same thing: run the work
-inside the given ID, or inside the current or a new one when the ID is missing. Neither
-validates the ID; use `correlationSource.accepts(id)` for IDs from untrusted sources.
+inside the given ID, or inside the current or a new one when the ID is missing or fails
+[the built-in check](#the-built-in-check). Neither applies the default length and
+character rule; use `correlationSource.accepts(id)` for IDs from untrusted sources.
 
 ```typescript
 import { Processor, WorkerHost } from '@nestjs/bullmq';
@@ -268,7 +295,7 @@ instead.
 | Export | Type | Description |
 |--------|------|-------------|
 | `getCorrelationId()` | `() => string` | Read the current correlation ID, or generate a UUIDv7 when none exists |
-| `runWithCorrelationId(id, fn)` | `(id: string \| undefined, fn: () => T) => T` | Execute a callback inside a populated correlation context |
+| `runWithCorrelationId(id, fn)` | `(id: string \| undefined, fn: () => T) => T` | Execute a callback inside a populated correlation context; a missing or malformed ID falls back to the current or a new one |
 | `addCorrelationId(data)` | `(data: T) => WithCorrelationId<T>` | Stamp the current ID onto a plain-object payload; throws `TypeError` otherwise |
 | `WithCorrelationId<T>` | Type | `T & { correlationId: string }` |
 | `correlationHeaders(key?)` | `(key?: string) => Record<string, string>` | Return a headers object for header-based transports |
@@ -279,7 +306,7 @@ instead.
 | `CORRELATION_OPTIONS`, `CorrelationOptions` | Token, type | Middleware configuration |
 | `DEFAULT_CORRELATION_HEADER` | Constant | `'x-correlation-id'` |
 | `DEFAULT_CORRELATION_ID_MAX_LENGTH`, `DEFAULT_CORRELATION_ID_PATTERN` | Constants | Default incoming-ID length limit (128) and character set |
-| `correlationSource` | Object | `{ current, run, create, accepts }` over the correlation store, for `PipelineModule.forRoot({ sources })` and `JobContextModule.forRoot`; `current()` generates nothing, `create()` is the one place a new id is made, and `accepts(id)` applies the default length and character rule to an id received from outside |
+| `correlationSource` | Object | `{ current, run, create, accepts }` over the correlation store, for `PipelineModule.forRoot({ sources })` and `JobContextModule.forRoot`; `current()` generates nothing, `run(id, fn)` runs without an id when `id` fails the built-in check, `create()` is the one place a new id is made, and `accepts(id)` applies the default length and character rule to an id received from outside |
 
 ### Pipeline integration
 
@@ -360,8 +387,8 @@ context.correlationId = request.headers['x-request-id'];
 
 **Incoming HTTP IDs are validated.** `HttpCorrelationMiddleware` now replaces an ID longer
 than 128 characters or outside `DEFAULT_CORRELATION_ID_PATTERN`, lowercases the configured
-header, throws on an invalid header name, and sets the ID on the response. To keep
-accepting any non-empty value:
+header, throws on an invalid header name, and sets the ID on the response. To accept any
+value that passes [the built-in check](#the-built-in-check):
 
 ```typescript
 { provide: CORRELATION_OPTIONS, useValue: { maxLength: 4096, validateIncoming: () => true } }

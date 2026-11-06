@@ -85,7 +85,9 @@ export interface CorrelationOptions {
    * Validation predicate for incoming IDs; replaces the default
    * {@link DEFAULT_CORRELATION_ID_PATTERN} check. Returning `false` (or
    * throwing) rejects the incoming value and falls back to the local
-   * correlation ID. `maxLength` still applies.
+   * correlation ID. `maxLength` still applies, and so does the check every
+   * write to the correlation store applies: the predicate sees only values of
+   * printable ASCII (0x20 to 0x7E) that neither start nor end with a space.
    *
    * @example
    * ```ts

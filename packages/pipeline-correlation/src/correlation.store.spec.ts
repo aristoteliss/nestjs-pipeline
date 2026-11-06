@@ -80,6 +80,60 @@ describe('runWithCorrelationId', () => {
   });
 });
 
+describe('the check every write to the store applies', () => {
+  const malformed = [
+    ['a CR/LF pair', 'id\r\nx-admin: 1'],
+    ['a tab', 'id\tx'],
+    ['a NUL character', 'id\u0000x'],
+    ['DEL', 'id\u007fx'],
+    ['a Latin-1 character', 'café'],
+    ['a character above 0xFF', 'id-\u2028'],
+    ['a leading space', ' id'],
+    ['a trailing space', 'id '],
+    ['only spaces', '   '],
+  ] as const;
+
+  it.each(malformed)('runWithCorrelationId replaces an id with %s', (_, id) => {
+    const result = runWithCorrelationId(id, () => source.current());
+    expect(result).not.toBe(id);
+    expect(result).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it.each(malformed)('correlationSource.run stores no id for %s', (_, id) => {
+    expect(source.run(id, () => source.current())).toBeUndefined();
+  });
+
+  it('keeps the current id when the new one is malformed', () => {
+    runWithCorrelationId('outer', () => {
+      runWithCorrelationId('in\nner', () => {
+        expect(getCorrelationId()).toBe('outer');
+      });
+    });
+  });
+
+  it.each([42, { id: 'x' }, ['id']])(
+    'replaces a non-string value %j',
+    (value) => {
+      const result = runWithCorrelationId(value as never, () =>
+        source.current(),
+      );
+      expect(result).toMatch(/^[0-9a-f-]{36}$/);
+    },
+  );
+
+  const everyVisibleCharacter = String.fromCharCode(
+    ...Array.from({ length: 0x7e - 0x21 + 1 }, (_, i) => 0x21 + i),
+  );
+
+  it.each(['!', '~', 'a b', '<b>"x"</b>', everyVisibleCharacter])(
+    'leaves application rules to the application: keeps %j',
+    (id) => {
+      expect(runWithCorrelationId(id, () => source.current())).toBe(id);
+      expect(source.run(id, () => source.current())).toBe(id);
+    },
+  );
+});
+
 describe('addCorrelationId', () => {
   it('stamps correlationId from the active context', () => {
     const result = runWithCorrelationId('ctx-abc', () => {

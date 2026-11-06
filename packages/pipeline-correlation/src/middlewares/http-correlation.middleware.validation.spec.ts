@@ -122,6 +122,30 @@ describe('HttpCorrelationMiddleware incoming ID validation', () => {
     expect(run(middleware, 'other-abc').id).not.toBe('other-abc');
   });
 
+  it('does not let custom validation accept an ID that fails the built-in check', () => {
+    const validateIncoming = vi.fn(() => true);
+    const middleware = new HttpCorrelationMiddleware({
+      validateIncoming,
+      maxLength: 4096,
+    } as never);
+
+    for (const malformed of ['café', 'id\tx', 'id\u0001x', 'id ']) {
+      const result = run(middleware, malformed);
+      expect(result.id).not.toBe(malformed);
+      expect(result.responseId).toBe(result.id);
+    }
+    expect(validateIncoming).not.toHaveBeenCalled();
+  });
+
+  it('applies the built-in check after trimming', () => {
+    const middleware = new HttpCorrelationMiddleware({
+      trimIncoming: true,
+      validateIncoming: () => true,
+    } as never);
+
+    expect(run(middleware, ' edge:42 ').id).toBe('edge:42');
+  });
+
   it('falls back safely when a custom validator throws', () => {
     const middleware = new HttpCorrelationMiddleware({
       validateIncoming: () => {

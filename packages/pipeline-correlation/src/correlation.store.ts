@@ -10,14 +10,40 @@ import {
 
 const correlation = new AsyncLocalStorage<string | undefined>();
 
+/** Printable ASCII (0x20 to 0x7E) that neither starts nor ends with a space. */
+const PORTABLE_CORRELATION_ID = /^[\x21-\x7E](?:[\x20-\x7E]*[\x21-\x7E])?$/;
+
+/**
+ * Whether `value` can be a correlation id in any application: a non-empty
+ * string of printable ASCII characters (0x20 to 0x7E) that neither starts nor
+ * ends with a space. Any other value cannot travel unchanged between
+ * services: control characters allow log and header injection, HTTP and gRPC
+ * strip surrounding spaces, gRPC text metadata rejects non-ASCII characters,
+ * and Node decodes incoming header bytes as Latin-1, so a UTF-8 id changes on
+ * its first hop.
+ *
+ * Every write to the correlation store applies this check, and no option
+ * turns it off: `correlationSource.run`, {@link runWithCorrelationId},
+ * `@WithCorrelation` and `HttpCorrelationMiddleware` treat a value that fails
+ * it as missing.
+ *
+ * @internal
+ */
+export function isPortableCorrelationId(value: unknown): value is string {
+  return typeof value === 'string' && PORTABLE_CORRELATION_ID.test(value);
+}
+
 /**
  * The correlation id as a context source, for `PipelineModule.forRoot({ sources })`
  * of `@nestjs-pipeline/core` and `JobContextModule.forRoot` of
  * `@nestjs-pipeline/job-context`. Unlike {@link getCorrelationId}, `current()`
  * generates nothing: it returns `undefined` when no id is set, so a pipeline
  * generates one and runs with it, and {@link getCorrelationId} inside the
- * handler returns that id. `create()` makes a new id, the one way this
- * package, pipelines and jobs generate one. `accepts(id)` tells whether an id received from
+ * handler returns that id. `run(id, fn)` runs `fn` with `id`, or with no id
+ * when `id` fails the check every write to the store applies: a non-empty
+ * string of printable ASCII that neither starts nor ends with a space.
+ * `create()` makes a new id, the one way this package, pipelines and jobs
+ * generate one. `accepts(id)` tells whether an id received from
  * outside, such as in a job payload, is well formed: at most
  * {@link DEFAULT_CORRELATION_ID_MAX_LENGTH} characters matching
  * {@link DEFAULT_CORRELATION_ID_PATTERN}.
@@ -30,7 +56,7 @@ const correlation = new AsyncLocalStorage<string | undefined>();
 export const correlationSource = {
   current: (): string | undefined => correlation.getStore(),
   run: <T>(value: string | undefined, fn: () => T): T =>
-    correlation.run(value, fn),
+    correlation.run(isPortableCorrelationId(value) ? value : undefined, fn),
   create: (): string => uuidv7(),
   accepts: (id: string): boolean =>
     id.length <= DEFAULT_CORRELATION_ID_MAX_LENGTH &&
@@ -44,11 +70,11 @@ export const correlationSource = {
  * WebSocket gateways, cron jobs, etc.) to propagate an external correlation ID
  * into any CQRS commands or queries dispatched inside the callback.
  *
- * If `correlationId` is falsy (`undefined` or empty), the id is resolved via
- * {@link getCorrelationId} (the current one, or a new one from
- * `correlationSource.create()`), so
- * `fn` always runs with a correlation id. A pipeline dispatched inside `fn`
- * takes it as its `context.correlationId`.
+ * If `correlationId` is missing, empty, or not printable ASCII without
+ * surrounding spaces (the check every write to the store applies), the id is
+ * resolved via {@link getCorrelationId} (the current one, or a new one from
+ * `correlationSource.create()`), so `fn` always runs with a correlation id. A
+ * pipeline dispatched inside `fn` takes it as its `context.correlationId`.
  *
  * @example
  * ```ts
@@ -81,14 +107,17 @@ export const correlationSource = {
  * }
  * ```
  *
- * @param correlationId - The correlation ID to propagate. If falsy, falls back to {@link getCorrelationId}.
+ * @param correlationId - The correlation ID to propagate. If missing or malformed, falls back to {@link getCorrelationId}.
  * @param fn - The callback to execute within the correlation context.
  */
 export function runWithCorrelationId<T>(
   correlationId: string | undefined,
   fn: () => T,
 ): T {
-  return correlation.run(correlationId || getCorrelationId(), fn);
+  return correlation.run(
+    isPortableCorrelationId(correlationId) ? correlationId : getCorrelationId(),
+    fn,
+  );
 }
 
 /**
