@@ -100,7 +100,7 @@
         "**/packages/**/*.ts",
         "!**/packages/ddd-core/**",
         "!**/packages/ddd-mikro-orm/**",
-        "!**/integration/packages/consumer/src-0.5/**"
+        "!**/integration/packages/consumer/src-0.6/facade-smoke.ts"
       ]
     },
     {

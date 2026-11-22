@@ -2,14 +2,14 @@
 
 ## 0.6.1
 
-`@nestjs-pipeline/core`, `@nestjs-pipeline/correlation` and `@nestjs-pipeline/job-context`
-are released at 0.6.1, the version of the `@cqrs-ddd` packages that they re-export. The
-other 12 `@nestjs-pipeline/*` packages stay at 0.4.3 or 0.5.0, and the five `@cqrs-ddd/*`
-packages of this repository at 0.4.2.
+Four `@nestjs-pipeline` packages are released at 0.6.1, the version of the `@cqrs-ddd`
+packages that they re-export: `core`, `correlation`, `job-context` and `cqrs-ddd`. The other
+11 `@nestjs-pipeline/*` packages stay at 0.4.3, and the five `@cqrs-ddd/*` packages of this
+repository at 0.4.2.
 
 ### Changed
 
-- The three packages have no code of their own. They re-export the `@cqrs-ddd` 0.6.1
+- The four packages have no code of their own. They re-export the `@cqrs-ddd` 0.6.1
   packages of https://github.com/aristoteliss/ddd-cqrs, the main repository, with the same
   logic and the same capabilities:
   - `@nestjs-pipeline/core`: `@cqrs-ddd/pipeline` and `@cqrs-ddd/nestjs`.
@@ -17,6 +17,8 @@ packages of this repository at 0.4.2.
     `@cqrs-ddd/nestjs/correlation`.
   - `@nestjs-pipeline/job-context`: `@cqrs-ddd/pipeline-job-context` and
     `@cqrs-ddd/nestjs/job-context`.
+  - `@nestjs-pipeline/cqrs-ddd` (from 0.5.0): `@cqrs-ddd/nestjs`, from the same three
+    entry points.
 - Each package depends on `@cqrs-ddd/nestjs` `^0.6.1`. Its peers are `@cqrs-ddd/core`,
   `@cqrs-ddd/pipeline`, the re-exported `@cqrs-ddd` package (`^0.6.1`), and
   `@nestjs/common`, `@nestjs/core` and `@nestjs/cqrs` 12.
@@ -25,11 +27,15 @@ packages of this repository at 0.4.2.
 - The 0.4.3 behavior packages (`audit`, `cache`, `casl`, `deadletter`, `feature-flags`,
   `idempotency`, `opentelemetry`, `rate-limit`, `resilience`, `zod`) require
   `@nestjs-pipeline/core` `^0.4.3`, as before.
+- The release check has two lines: `0.4` and `0.6`. The `0.6` line packs the four
+  packages and runs their fixtures in a NestJS application.
+- A new page, [Upgrading to 0.6.1](https://aristoteliss.github.io/nestjs-pipeline/upgrading/to-0-6/),
+  gives the steps.
 
 ### Breaking
 
-- The API is the API of `@cqrs-ddd` 0.6.1. The guide
-  https://aristoteliss.github.io/ddd-cqrs/guides/from-nestjs-pipeline/ gives all the
+- `core`, `correlation` and `job-context`: the API is the API of `@cqrs-ddd` 0.6.1. The
+  guide https://aristoteliss.github.io/ddd-cqrs/guides/from-nestjs-pipeline/ gives all the
   changes. For these packages:
   - A behavior is a provider of the application. `PipelineModule.forRoot()` has no
     `behaviors`, `bootstrapLogLevel` or `loggerProvider` option, and the module has no
@@ -40,7 +46,9 @@ packages of this repository at 0.4.2.
   - `HttpCorrelationMiddleware` is `CorrelationMiddleware`.
   - `@nestjs-pipeline/correlation` and `@nestjs-pipeline/job-context` require the peers of
     `@cqrs-ddd/nestjs`.
-- Versions 0.1 to 0.4 stay on npm unchanged.
+- `cqrs-ddd`: the `@cqrs-ddd` peers change from `^0.5.0` to `^0.6.1`. The changes from
+  0.5 to 0.6 are in the CHANGELOG of ddd-cqrs.
+- Versions 0.1 to 0.5 stay on npm unchanged.
 
 ## 0.4.4
 

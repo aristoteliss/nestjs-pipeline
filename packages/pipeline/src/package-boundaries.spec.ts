@@ -16,9 +16,9 @@ import { describe, expect, it } from 'vitest';
  * resolves exactly one copy of it.
  *
  * They cover the 0.4 release line, whose packages peer the published core 0.4.
- * The facades of the 0.5 and 0.6 lines (`@nestjs-pipeline/cqrs-ddd`, and core,
- * correlation and job-context from 0.6.1) peer NestJS and `@cqrs-ddd/core` by
- * design; `integration/packages/release.mjs 0.5` and `0.6` check them.
+ * The facades of the 0.6 line (core, correlation, job-context and cqrs-ddd)
+ * peer NestJS and `@cqrs-ddd/core` by design; `integration/packages/release.mjs 0.6`
+ * checks them.
  */
 
 const CORE = '@nestjs-pipeline/core';

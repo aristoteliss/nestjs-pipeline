@@ -19,7 +19,7 @@
     "clean": "pnpm -r run clean",
     "clean:all": "rm -rf node_modules .tmp .cache coverage api/node_modules api/dist api/coverage api/*.tsbuildinfo packages/*/node_modules packages/*/dist packages/*/coverage packages/*/*.tsbuildinfo packages/*/LICENSE packages/*/COMMERCIAL_LICENSE.txt packages/*/.package-licenses.generated",
     "rebuild": "pnpm -r run clean && pnpm -r build",
-    "test:release": "pnpm rebuild && pnpm copy-licenses && node integration/packages/release.mjs 0.4 && node integration/packages/release.mjs 0.5 && node integration/packages/release.mjs 0.6",
+    "test:release": "pnpm rebuild && pnpm copy-licenses && node integration/packages/release.mjs 0.4 && node integration/packages/release.mjs 0.6",
     "verify:all": "pnpm lint && pnpm test:unit && pnpm test:build && pnpm test:release && pnpm test:e2e",
     "copy-licenses": "node -e \"const fs=require('fs'),path=require('path'),dirs=fs.readdirSync('packages').filter(d=>fs.existsSync(path.join('packages',d,'package.json')));for(const d of dirs){fs.copyFileSync('LICENSE',path.join('packages',d,'LICENSE'));fs.copyFileSync('COMMERCIAL_LICENSE.txt',path.join('packages',d,'COMMERCIAL_LICENSE.txt'));}\"",
     "publish:all": "pnpm copy-licenses && pnpm -r publish --access public",

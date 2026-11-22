@@ -45,7 +45,7 @@ npm install @cqrs-ddd/nestjs @cqrs-ddd/pipeline @cqrs-ddd/core
 
 ### Peer Dependencies
 
-- Required: `@nestjs/common` (>=12.0.0), `@nestjs/core` (>=12.0.0), `@nestjs/cqrs` (>=12.0.0), `@cqrs-ddd/pipeline` (^0.5.0), `@cqrs-ddd/core` (^0.5.0), Node.js >= 22.12.0.
+- Required: `@nestjs/common` (>=12.0.0), `@nestjs/core` (>=12.0.0), `@nestjs/cqrs` (>=12.0.0), `@cqrs-ddd/pipeline` (^0.6.1), `@cqrs-ddd/core` (^0.6.1), Node.js >= 22.12.0.
 - Optional peers (automatically converted by `ErrorFilter` when present):
   - `@cqrs-ddd/pipeline-zod`
   - `@cqrs-ddd/pipeline-casl`
@@ -405,6 +405,8 @@ For backwards compatibility and unified monorepo naming, the package `@nestjs-pi
 import { PipelineModule, ErrorFilter } from '@cqrs-ddd/nestjs';
 import { PipelineModule, ErrorFilter } from '@nestjs-pipeline/cqrs-ddd';
 ```
+
+From 0.6.1, `@nestjs-pipeline/core`, `@nestjs-pipeline/correlation` and `@nestjs-pipeline/job-context` are re-exports too. [Upgrading to 0.6.1](/nestjs-pipeline/upgrading/to-0-6/) lists them.
 
 ## License
 

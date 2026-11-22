@@ -45,7 +45,7 @@ npm install @cqrs-ddd/nestjs @cqrs-ddd/pipeline @cqrs-ddd/core
 
 ### Peer Dependencies <a id="peer-dependencies"></a>
 
-- Απαιτούμενα: `@nestjs/common` (>=12.0.0), `@nestjs/core` (>=12.0.0), `@nestjs/cqrs` (>=12.0.0), `@cqrs-ddd/pipeline` (^0.5.0), `@cqrs-ddd/core` (^0.5.0), Node.js >= 22.12.0.
+- Απαιτούμενα: `@nestjs/common` (>=12.0.0), `@nestjs/core` (>=12.0.0), `@nestjs/cqrs` (>=12.0.0), `@cqrs-ddd/pipeline` (^0.6.1), `@cqrs-ddd/core` (^0.6.1), Node.js >= 22.12.0.
 - Προαιρετικά peers (μετατρέπονται αυτόματα από το `ErrorFilter` όταν είναι παρόντα):
   - `@cqrs-ddd/pipeline-zod`
   - `@cqrs-ddd/pipeline-casl`
@@ -405,6 +405,8 @@ export class AppModule implements NestModule {
 import { PipelineModule, ErrorFilter } from '@cqrs-ddd/nestjs';
 import { PipelineModule, ErrorFilter } from '@nestjs-pipeline/cqrs-ddd';
 ```
+
+Από την έκδοση 0.6.1, τα `@nestjs-pipeline/core`, `@nestjs-pipeline/correlation` και `@nestjs-pipeline/job-context` είναι επίσης επανεξαγωγές. Η σελίδα [Αναβάθμιση στην έκδοση 0.6.1](/nestjs-pipeline/el/upgrading/to-0-6/) τα απαριθμεί.
 
 ## Άδεια χρήσης <a id="license"></a>
 
