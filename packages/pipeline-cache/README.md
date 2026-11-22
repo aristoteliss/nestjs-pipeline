@@ -21,7 +21,7 @@ pnpm add @nestjs-pipeline/cache cache-manager keyv
 **Peer dependencies:**
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
+pnpm add @nestjs-pipeline/core@^0.4.3 @nestjs/common reflect-metadata
 ```
 
 Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0`, `@nestjs-pipeline/core` `^0.4.2`,

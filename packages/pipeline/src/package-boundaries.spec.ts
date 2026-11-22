@@ -11,16 +11,18 @@ import { describe, expect, it } from 'vitest';
  * only parses JavaScript and TypeScript — a `language json` pattern compiles but
  * never matches, so a manifest rule written that way would silently pass.
  *
- * They belong to this package specifically: `@nestjs-pipeline/core` owns
+ * They belong to this package specifically: `@nestjs-pipeline/core` 0.4 owns
  * process-wide singletons, so it is core's own contract that every sibling
  * resolves exactly one copy of it.
  *
- * They cover the 0.4 release line. The 0.5 NestJS adapters (`@cqrs-ddd/nestjs`
- * and its facade `@nestjs-pipeline/cqrs-ddd`) peer NestJS and `@cqrs-ddd/core`
- * by design; `integration/packages/release.mjs 0.5` checks them.
+ * They cover the 0.4 release line, whose packages peer the published core 0.4.
+ * The facades of the 0.5 and 0.6 lines (`@nestjs-pipeline/cqrs-ddd`, and core,
+ * correlation and job-context from 0.6.1) peer NestJS and `@cqrs-ddd/core` by
+ * design; `integration/packages/release.mjs 0.5` and `0.6` check them.
  */
 
 const CORE = '@nestjs-pipeline/core';
+const CORE_LINE = '^0.4.3';
 const DDD_PREFIX = '@nestjs-pipeline/ddd-';
 const SCOPE = '@nestjs-pipeline/';
 const NEUTRAL_SCOPE = '@cqrs-ddd/';
@@ -97,7 +99,7 @@ const neutral = published.filter((manifest) =>
 describe('published package boundaries', () => {
   it('discovers every workspace under packages/', () => {
     expect(published.length).toBeGreaterThanOrEqual(12);
-    expect(published.map((m) => m.name)).toContain(CORE);
+    expect(published.map((m) => m.name)).not.toContain(CORE);
   });
 
   it.each(siblings.map((m) => m.name))(
@@ -115,24 +117,13 @@ describe('published package boundaries', () => {
         importsCore(name),
       );
       if (importsCore(name)) {
-        // pnpm rewrites `workspace:^` to `^<core version>` when the tarball is
-        // built, so the published range tracks core without manual edits.
-        expect(manifest.peerDependencies?.[CORE]).toBe('workspace:^');
+        // The workspace core is the 0.6 facade, so the 0.4 line peers the
+        // published core 0.4 and tests against it.
+        expect(manifest.peerDependencies?.[CORE]).toBe(CORE_LINE);
+        expect(manifest.devDependencies?.[CORE]).toBe(CORE_LINE.slice(1));
       }
     },
   );
-
-  it('gives core no runtime dependency except the framework-neutral @cqrs-ddd utilities', () => {
-    const core = published.find((m) => m.name === CORE) as Manifest;
-
-    // They hold no module-scoped state, so a second copy in a consumer is
-    // harmless; anything else would be a runtime dependency beyond NestJS.
-    expect(core.dependencies ?? {}).toEqual({
-      '@cqrs-ddd/safe-stringify': 'workspace:^',
-      '@cqrs-ddd/untyped': 'workspace:^',
-      '@cqrs-ddd/uuidv7': 'workspace:^',
-    });
-  });
 
   it('places every workspace in one of the two published scopes', () => {
     expect(

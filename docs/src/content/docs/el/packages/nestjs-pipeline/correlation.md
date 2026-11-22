@@ -4,10 +4,11 @@ description: "Διάδοση Correlation ID για το NestJS (HTTP, Bull, Rabb
 editUrl: false
 ---
 
-> **Από την έκδοση 0.5.0 αυτό το πακέτο συνεχίζει ως [`@cqrs-ddd/pipeline-correlation`](https://www.npmjs.com/package/@cqrs-ddd/pipeline-correlation).** Ο κώδικας, τα issues και
-> τα releases βρίσκονται στο [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs), με τεκμηρίωση στο [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-correlation/).
-> Οι εφαρμογές NestJS προσθέτουν το [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs). Οι εκδόσεις 0.1 έως 0.4 του
-> `@nestjs-pipeline/correlation` παραμένουν στο npm αμετάβλητες, και η γραμμή 0.4.x λαμβάνει μόνο διορθώσεις (fixes).
+:::tip[Το κύριο αποθετήριο είναι το ddd-cqrs]
+**Μπορείτε να χρησιμοποιήσετε απευθείας τα [`@cqrs-ddd/pipeline-correlation`](https://www.npmjs.com/package/@cqrs-ddd/pipeline-correlation) και [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs).** Από την έκδοση 0.6.1, το `@nestjs-pipeline/correlation` δεν έχει δικό του κώδικα: επανεξάγει τα `@cqrs-ddd/pipeline-correlation` και `@cqrs-ddd/nestjs/correlation` στην ίδια έκδοση. Ο κώδικας, τα issues και οι εκδόσεις βρίσκονται στο [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs). Η τεκμηρίωση της 0.6.1 βρίσκεται στο [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-correlation/), και ο οδηγός [From @nestjs-pipeline 0.4.x](https://aristoteliss.github.io/ddd-cqrs/el/guides/from-nestjs-pipeline/) δίνει τις αλλαγές.
+
+Το `@nestjs-pipeline/correlation` δεν έχει αποσυρθεί. Οι εκδόσεις 0.1 έως 0.4 παραμένουν στο npm αμετάβλητες. Η σελίδα αυτή τεκμηριώνει το API της σειράς 0.4.x.
+:::
 
 Αυτόνομη διάδοση Correlation ID (correlation ID propagation) για εφαρμογές NestJS. Λειτουργεί με HTTP,
 Bull/BullMQ, RabbitMQ, Kafka, NATS, gRPC, cron jobs και οποιοδήποτε προσαρμοσμένο transport.

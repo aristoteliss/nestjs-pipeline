@@ -1,7 +1,7 @@
 {
   "name": "@nestjs-pipeline/job-context",
-  "version": "0.4.3",
-  "description": "Carries the tenant, correlation id and principal of a request into the queue jobs it enqueues, and gives system-started work an explicit context",
+  "version": "0.6.1",
+  "description": "Carries the tenant, correlation id and principal of a request into its queue jobs, under the @nestjs-pipeline name: re-exports @cqrs-ddd/pipeline-job-context and @cqrs-ddd/nestjs/job-context, which hold the code",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
@@ -13,9 +13,9 @@
     "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
     "directory": "packages/pipeline-job-context"
   },
-  "homepage": "https://aristoteliss.github.io/nestjs-pipeline/packages/nestjs-pipeline/job-context/",
+  "homepage": "https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-job-context/",
   "bugs": {
-    "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
+    "url": "https://github.com/aristoteliss/ddd-cqrs/issues"
   },
   "keywords": [
     "nestjs",
@@ -54,13 +54,27 @@
     "test:watch": "vitest",
     "prepublishOnly": "pnpm run rebuild"
   },
-  "peerDependencies": {
-    "@nestjs/common": "^12.1.0"
+  "dependencies": {
+    "@cqrs-ddd/nestjs": "^0.6.1"
   },
   "devDependencies": {
-    "@nestjs/common": "^12.1.1",
-    "@vitest/coverage-v8": "^5.0.2",
+    "@cqrs-ddd/core": "^0.6.1",
+    "@cqrs-ddd/pipeline": "^0.6.1",
+    "@cqrs-ddd/pipeline-job-context": "^0.6.1",
+    "@nestjs/common": "^12.5.1",
+    "@nestjs/core": "^12.5.1",
+    "@nestjs/cqrs": "^12.1.3",
+    "@vitest/coverage-v8": "^5.1.1",
     "reflect-metadata": "^0.2.2",
-    "vitest": "^5.0.2"
+    "rxjs": "^7.8.2",
+    "vitest": "^5.1.1"
+  },
+  "peerDependencies": {
+    "@cqrs-ddd/core": "^0.6.1",
+    "@cqrs-ddd/pipeline": "^0.6.1",
+    "@cqrs-ddd/pipeline-job-context": "^0.6.1",
+    "@nestjs/common": "^12.1.1",
+    "@nestjs/core": "^12.1.1",
+    "@nestjs/cqrs": "^12.1.0"
   }
 }

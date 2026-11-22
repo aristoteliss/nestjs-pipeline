@@ -1,7 +1,7 @@
 {
   "name": "@nestjs-pipeline/correlation",
-  "version": "0.4.4",
-  "description": "Correlation ID propagation for NestJS (HTTP, Bull, RabbitMQ, Kafka, gRPC, NATS, cron)",
+  "version": "0.6.1",
+  "description": "Correlation ID propagation for NestJS under the @nestjs-pipeline name: re-exports @cqrs-ddd/pipeline-correlation and @cqrs-ddd/nestjs/correlation, which hold the code",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
@@ -13,9 +13,9 @@
     "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
     "directory": "packages/pipeline-correlation"
   },
-  "homepage": "https://aristoteliss.github.io/nestjs-pipeline/packages/nestjs-pipeline/correlation/",
+  "homepage": "https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-correlation/",
   "bugs": {
-    "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
+    "url": "https://github.com/aristoteliss/ddd-cqrs/issues"
   },
   "exports": {
     ".": {
@@ -44,17 +44,27 @@
     "test:watch": "vitest",
     "prepublishOnly": "pnpm run rebuild"
   },
-  "peerDependencies": {
-    "@nestjs/common": "^12.1.0"
+  "dependencies": {
+    "@cqrs-ddd/nestjs": "^0.6.1"
   },
   "devDependencies": {
-    "@nestjs/common": "^12.1.1",
-    "@vitest/coverage-v8": "^5.0.2",
+    "@cqrs-ddd/core": "^0.6.1",
+    "@cqrs-ddd/pipeline": "^0.6.1",
+    "@cqrs-ddd/pipeline-correlation": "^0.6.1",
+    "@nestjs/common": "^12.5.1",
+    "@nestjs/core": "^12.5.1",
+    "@nestjs/cqrs": "^12.1.3",
+    "@vitest/coverage-v8": "^5.1.1",
     "reflect-metadata": "^0.2.2",
-    "vitest": "^5.0.2"
+    "rxjs": "^7.8.2",
+    "vitest": "^5.1.1"
   },
-  "dependencies": {
-    "@cqrs-ddd/untyped": "workspace:^",
-    "@cqrs-ddd/uuidv7": "workspace:^"
+  "peerDependencies": {
+    "@cqrs-ddd/core": "^0.6.1",
+    "@cqrs-ddd/pipeline": "^0.6.1",
+    "@cqrs-ddd/pipeline-correlation": "^0.6.1",
+    "@nestjs/common": "^12.1.1",
+    "@nestjs/core": "^12.1.1",
+    "@nestjs/cqrs": "^12.1.0"
   }
 }

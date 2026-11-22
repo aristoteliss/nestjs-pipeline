@@ -1,14 +1,18 @@
 # nestjs-pipeline
 
-> **From 0.5.0 the work continues as the [`@cqrs-ddd`](https://www.npmjs.com/org/cqrs-ddd)
-> packages**, developed in [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs) and documented at
-> [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/):
-> `@nestjs-pipeline/core` continues as `@cqrs-ddd/pipeline`, each `@nestjs-pipeline/<name>`
-> as `@cqrs-ddd/pipeline-<name>`, and NestJS applications add the adapter
-> [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs) (also published here as the
-> facade `@nestjs-pipeline/cqrs-ddd`). This repository is now the complete NestJS example of
-> those packages (`api/`) and keeps the 0.4.x line below, which receives fixes only;
-> versions 0.1 to 0.4 stay on npm unchanged.
+> ## The main repository is [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs). You can use the [`@cqrs-ddd`](https://www.npmjs.com/org/cqrs-ddd) packages directly.
+>
+> **The code of the packages is in ddd-cqrs**, documented at
+> [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/).
+> `@nestjs-pipeline/core` is `@cqrs-ddd/pipeline`, each `@nestjs-pipeline/<name>` is
+> `@cqrs-ddd/pipeline-<name>`, and NestJS applications add the adapter
+> [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs).
+>
+> **The `@nestjs-pipeline` names are not deprecated.** From 0.6.1, `@nestjs-pipeline/core`,
+> `@nestjs-pipeline/correlation` and `@nestjs-pipeline/job-context` re-export their `@cqrs-ddd`
+> packages at the same version, and `@nestjs-pipeline/cqrs-ddd` re-exports `@cqrs-ddd/nestjs`.
+> This repository is the complete NestJS example of the packages (`api/`), and it keeps the
+> 0.4.x line below. Versions 0.1 to 0.4 stay on npm unchanged.
 
 ## New applications: `@cqrs-ddd/nestjs`
 
@@ -25,10 +29,22 @@ a complete root module, and
 application that already uses `@nestjs/cqrs`. `api/` in this repository is a complete
 NestJS application on these packages.
 
+## The `@nestjs-pipeline` names at 0.6.1
+
+| Package | Re-exports |
+|---|---|
+| [`@nestjs-pipeline/core`](packages/pipeline/README.md) | [`@cqrs-ddd/pipeline`](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline/) and [`@cqrs-ddd/nestjs`](https://aristoteliss.github.io/ddd-cqrs/packages/nestjs/) |
+| [`@nestjs-pipeline/correlation`](packages/pipeline-correlation/README.md) | [`@cqrs-ddd/pipeline-correlation`](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-correlation/) and `@cqrs-ddd/nestjs/correlation` |
+| [`@nestjs-pipeline/job-context`](packages/pipeline-job-context/README.md) | [`@cqrs-ddd/pipeline-job-context`](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-job-context/) and `@cqrs-ddd/nestjs/job-context` |
+
+The packages have no code of their own, so the logic and the capabilities are those of
+`@cqrs-ddd` 0.6.1. The API changes from 0.4.x are in
+[From @nestjs-pipeline 0.4.x](https://aristoteliss.github.io/ddd-cqrs/guides/from-nestjs-pipeline/).
+
 ## The 0.4.x line: `@nestjs-pipeline/*`
 
-An application already on `@nestjs-pipeline/*` 0.4.x keeps working, and the line receives
-fixes only. The rest of this section documents it.
+An application already on `@nestjs-pipeline/*` 0.4.x keeps working. The rest of this section
+documents the 0.4.x line. Its behavior packages peer `@nestjs-pipeline/core` `^0.4.3`.
 
 Pipeline behaviors for **NestJS CQRS** — wrap every command, query, and event handler with reusable cross-cutting concerns (logging, validation, tracing, audit, …) using a clean middleware-like chain.
 
@@ -71,14 +87,14 @@ Framework-neutral packages, with no NestJS dependency:
 > No `@nestjs-pipeline/*` package uses `@cqrs-ddd/core`, and it knows nothing of them: an
 > application connects the two.
 
-The `@nestjs-pipeline/*` packages are at **0.4.3**, a README-only release that points to
-their successors; the five `@cqrs-ddd/*` packages above stay at **0.4.2** here and continue
-from 0.5.0 in ddd-cqrs. [CHANGELOG.md](CHANGELOG.md) records each release.
+On the 0.4.x line, the `@nestjs-pipeline/*` packages are at **0.4.3** (`correlation` at
+**0.4.4**). `core`, `correlation` and `job-context` continue at **0.6.1** as re-exports. The
+five `@cqrs-ddd/*` packages above stay at **0.4.2** here and continue from 0.5.0 in ddd-cqrs. [CHANGELOG.md](CHANGELOG.md) records each release.
 
 ### Installation
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core @nestjs/cqrs reflect-metadata rxjs
+pnpm add @nestjs-pipeline/core@^0.4.3 @nestjs/common @nestjs/core @nestjs/cqrs reflect-metadata rxjs
 ```
 
 Requires Node.js 22.12 or later and NestJS `^12.1.0`. Every package is an ES module; a CommonJS application loads it with `require()`. Continue with [Getting started](https://aristoteliss.github.io/nestjs-pipeline/getting-started/).
@@ -91,23 +107,11 @@ nestjs-pipeline/
 ├── pnpm-workspace.yaml           # declares packages/* and api
 ├── tsconfig.base.json            # shared TypeScript config
 ├── packages/
-│   ├── pipeline/                 # @nestjs-pipeline/core
+│   ├── pipeline/                 # @nestjs-pipeline/core 0.6 — re-exports @cqrs-ddd/pipeline and @cqrs-ddd/nestjs
 │   │   └── src/
-│   │       ├── behaviors/        # LoggingBehavior
-│   │       ├── constants/        # pipelineStore (AsyncLocalStorage)
-│   │       ├── decorators/       # @UsePipeline
-│   │       ├── helpers/          # behavior entries, logging intent, toPostgresJson
-│   │       ├── interfaces/       # IPipelineBehavior, IPipelineContext
-│   │       ├── options/          # PipelineModuleOptions, GlobalBehaviorsOptions
-│   │       ├── services/         # handler discovery, chain planning, runner
-│   │       ├── pipeline.context.ts
-│   │       └── pipeline.module.ts
-│   ├── pipeline-correlation/      # @nestjs-pipeline/correlation
-│   │   └── src/
-│   │       ├── decorators/       # @WithCorrelation, CorrelationFrom
-│   │       ├── middlewares/      # HttpCorrelationMiddleware
-│   │       ├── options/          # CorrelationOptions
-│   │       └── correlation.store.ts    # correlationSource, getCorrelationId, runWithCorrelationId, addCorrelationId
+│   │       ├── index.ts
+│   │       └── package-boundaries.spec.ts  # manifest rules of the 0.4 line
+│   ├── pipeline-correlation/     # @nestjs-pipeline/correlation 0.6 — re-exports @cqrs-ddd/pipeline-correlation and @cqrs-ddd/nestjs/correlation
 │   ├── pipeline-zod/             # @nestjs-pipeline/zod
 │   │   └── src/
 │   │       ├── errors/           # ZodValidationError
@@ -186,13 +190,7 @@ nestjs-pipeline/
 │   ├── pipeline-tenant/          # @nestjs-pipeline/tenant
 │   │   └── src/
 │   │       └── tenant-scope.ts   # tenantSource, currentTenantId, runWithTenant
-│   ├── pipeline-job-context/     # @nestjs-pipeline/job-context
-│   │   └── src/
-│   │       ├── decorators/       # @InJobContext, @AsSystem
-│   │       ├── errors/           # MissingJobContextError, InvalidJobContextError
-│   │       ├── helpers/          # withJobContext, payload validation
-│   │       ├── interfaces/       # IJobPrincipal, PrincipalReference, JobContext
-│   │       └── job-context.module.ts   # JobContextModule.forRoot({ principal, tenants, sources })
+│   ├── pipeline-job-context/     # @nestjs-pipeline/job-context 0.6 — re-exports @cqrs-ddd/pipeline-job-context and @cqrs-ddd/nestjs/job-context
 │   ├── uuidv7/                   # @cqrs-ddd/uuidv7 — RFC 9562 UUIDv7, no dependencies
 │   ├── safe-stringify/           # @cqrs-ddd/safe-stringify — strict and log-safe JSON, key segments
 │   ├── untyped/                  # @cqrs-ddd/untyped — typed replacement for `as any`
@@ -276,8 +274,8 @@ types: a rule sees names and import sources, not what a value is.
 | `test-suite.grit` | No focused tests (`.only`, `fit`, `fdescribe`) |
 
 Package manifests are checked by specs instead, because Grit cannot match JSON:
-`packages/pipeline/src/package-boundaries.spec.ts` requires a package whose source imports
-`@nestjs-pipeline/core` to peer on it through `workspace:^`, and a package that does not
+`packages/pipeline/src/package-boundaries.spec.ts` requires a 0.4.x package whose source imports
+`@nestjs-pipeline/core` to peer on it as `^0.4.3`, and a package that does not
 import it not to declare it; none may depend on it at runtime (a second copy of core
 silently loses its async-local context and behavior identity). It also forbids
 dependencies on the private `api`; each `@cqrs-ddd/*` package has its own
@@ -286,9 +284,10 @@ dependencies on the private `api`; each `@cqrs-ddd/*` package has its own
 
 ### Releasing
 
-Two lines are released from here. The 0.4.x line, the `@nestjs-pipeline/*` packages,
-receives fixes only. The 0.5 line is `@nestjs-pipeline/cqrs-ddd`, a facade over
-`@cqrs-ddd/nestjs`. The five `@cqrs-ddd/*` copies stay at 0.4.2 and are never published
+Three lines are released from here. The 0.4.x line is the `@nestjs-pipeline/*` behavior
+packages. The 0.5 line is `@nestjs-pipeline/cqrs-ddd`, a facade over `@cqrs-ddd/nestjs`. The
+0.6 line is `@nestjs-pipeline/core`, `correlation` and `job-context`, facades over the
+`@cqrs-ddd` 0.6 packages; they take the version of the packages that they re-export. The five `@cqrs-ddd/*` copies stay at 0.4.2 and are never published
 from here again: from 0.5.0 they, and every other `@cqrs-ddd/*` package, are released
 from [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs).
 
@@ -300,8 +299,8 @@ covers the new version (`workspace:^` publishes as `^<version>`). To release:
    release and E2E suites; E2E needs a container runtime).
 2. `npm whoami`, then `pnpm copy-licenses`.
 3. Publish only the bumped packages, by filter, for example
-   `pnpm --filter "./packages/pipeline*" publish --access public` for the 0.4.x line, or
-   `pnpm --filter @nestjs-pipeline/cqrs-ddd publish --access public`. Never
+   `pnpm --filter @nestjs-pipeline/core --filter @nestjs-pipeline/correlation --filter @nestjs-pipeline/job-context publish --access public`
+   for the 0.6 line, or `pnpm --filter @nestjs-pipeline/cqrs-ddd publish --access public`. Never
    `pnpm publish:all` here: it would also try the frozen `@cqrs-ddd/*` copies. Each
    package rebuilds in `prepublishOnly`, and `pnpm publish` skips a version already on
    the registry, so check with `npm view <name> version` that it was published.
@@ -309,18 +308,18 @@ covers the new version (`workspace:^` publishes as `^<version>`). To release:
    the release commit, then push the tags; pushing `master` redeploys the documentation
    site.
 
-`pnpm test:release` runs `integration/packages/release.mjs` once per line (`0.4`, then
-`0.5`), because the two lines need different versions of `@cqrs-ddd/core`. It packs every
+`pnpm test:release` runs `integration/packages/release.mjs` once per line (`0.4`, `0.5`,
+then `0.6`), because the lines need different versions of `@cqrs-ddd/core`. It packs every
 non-private workspace of the line and checks each archive: name and version, licenses,
 JavaScript and declarations, `engines.node` equal to the root's, a README without relative
 links outside the package (they break on npmjs.com), no tests, and no dependency on the
 private `api`; on the 0.4 line, no `@nestjs-pipeline/*` package may name `@cqrs-ddd/core`.
 A temporary consumer outside the checkout then installs the tarballs, with required peers
-at the lockfile's versions and automatic peer installation off (on the 0.5 line also the
-optional peers, which its entry points need), and compiles and runs the line's fixtures:
+at the lockfile's versions and automatic peer installation off (on the 0.5 and 0.6 lines
+also the optional peers, which their entry points need), and compiles and runs the line's fixtures:
 `integration/packages/consumer/src/` for 0.4 (request-scoped behaviors across two Nest
 applications, the typed intent builders, CASL 7 startup) and
-`integration/packages/consumer/src-0.5/` for the facade. Every `.ts` file there is
+`integration/packages/consumer/src-0.5/` and `src-0.6/` for the facades. Every `.ts` file there is
 compiled and run; add a fixture for a new cross-package contract. Finally, on the 0.4 line,
 each framework-neutral `@cqrs-ddd/*` copy is installed alone, without NestJS. Requirements:
 the repository's Node and pnpm, Bun, `tar`, and registry access for uncached dependencies.
@@ -333,15 +332,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for architectural invariants, DDD boundar
 
 1. Create `packages/pipeline-<name>/` with `package.json`, `tsconfig.json`, `tsconfig.build.json`, and `src/index.ts`.
 
-2. Add `@nestjs-pipeline/core` as a peer dependency:
+2. Add `@nestjs-pipeline/core` 0.4 as a peer dependency:
 
    ```json
    {
      "peerDependencies": {
-       "@nestjs-pipeline/core": "workspace:^"
+       "@nestjs-pipeline/core": "^0.4.3"
      },
      "devDependencies": {
-       "@nestjs-pipeline/core": "workspace:*"
+       "@nestjs-pipeline/core": "0.4.3"
      }
    }
    ```

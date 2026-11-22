@@ -4,10 +4,11 @@ description: "Correlation ID propagation for NestJS (HTTP, Bull, RabbitMQ, Kafka
 editUrl: false
 ---
 
-> **From 0.5.0 this package continues as [`@cqrs-ddd/pipeline-correlation`](https://www.npmjs.com/package/@cqrs-ddd/pipeline-correlation).** Its code, issues and
-> releases are in [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs), documented at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-correlation/).
-> NestJS applications add [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs). Versions 0.1 to 0.4 of
-> `@nestjs-pipeline/correlation` stay on npm unchanged, and 0.4.x receives fixes only.
+:::tip[The main repository is ddd-cqrs]
+**You can use [`@cqrs-ddd/pipeline-correlation`](https://www.npmjs.com/package/@cqrs-ddd/pipeline-correlation) and [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs) directly.** From 0.6.1, `@nestjs-pipeline/correlation` has no code of its own: it re-exports `@cqrs-ddd/pipeline-correlation` and `@cqrs-ddd/nestjs/correlation` at the same version. The code, the issues and the releases are in [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs). The documentation of 0.6.1 is at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-correlation/), and [From @nestjs-pipeline 0.4.x](https://aristoteliss.github.io/ddd-cqrs/guides/from-nestjs-pipeline/) gives the changes.
+
+`@nestjs-pipeline/correlation` is not deprecated. Versions 0.1 to 0.4 stay on npm unchanged. This page documents the 0.4.x API.
+:::
 
 Standalone correlation ID propagation for NestJS applications. Works with HTTP,
 Bull/BullMQ, RabbitMQ, Kafka, NATS, gRPC, cron jobs, and any custom transport.

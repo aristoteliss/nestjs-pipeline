@@ -272,22 +272,22 @@ importers:
     dependencies:
       '@cqrs-ddd/nestjs':
         specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/core@0.5.0)(@cqrs-ddd/pipeline-casl@0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-correlation@0.5.0)(@cqrs-ddd/pipeline-feature-flags@0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0)))(@cqrs-ddd/pipeline-idempotency@0.5.0(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-job-context@0.5.0)(@cqrs-ddd/pipeline-rate-limit@0.5.0(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-zod@0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5))(@cqrs-ddd/pipeline@0.5.0)(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))
+        version: 0.5.0(@cqrs-ddd/core@0.5.0)(@cqrs-ddd/pipeline-casl@0.5.1(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-correlation@0.5.0)(@cqrs-ddd/pipeline-feature-flags@0.5.1(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0)))(@cqrs-ddd/pipeline-idempotency@0.5.1(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-job-context@0.5.0)(@cqrs-ddd/pipeline-rate-limit@0.5.1(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-zod@0.5.1(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5))(@cqrs-ddd/pipeline@0.5.0)(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))
       '@cqrs-ddd/pipeline-casl':
         specifier: ^0.5.0
-        version: 0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0)
+        version: 0.5.1(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0)
       '@cqrs-ddd/pipeline-feature-flags':
         specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))
+        version: 0.5.1(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))
       '@cqrs-ddd/pipeline-idempotency':
         specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)
+        version: 0.5.1(@cqrs-ddd/pipeline@0.5.0)
       '@cqrs-ddd/pipeline-rate-limit':
         specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)
+        version: 0.5.1(@cqrs-ddd/pipeline@0.5.0)
       '@cqrs-ddd/pipeline-zod':
         specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5)
+        version: 0.5.1(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5)
     devDependencies:
       '@cqrs-ddd/core':
         specifier: ^0.5.0
@@ -362,31 +362,28 @@ importers:
 
   packages/pipeline:
     dependencies:
-      '@cqrs-ddd/safe-stringify':
-        specifier: workspace:^
-        version: link:../safe-stringify
-      '@cqrs-ddd/untyped':
-        specifier: workspace:^
-        version: link:../untyped
-      '@cqrs-ddd/uuidv7':
-        specifier: workspace:^
-        version: link:../uuidv7
+      '@cqrs-ddd/nestjs':
+        specifier: ^0.6.1
+        version: 0.6.1(@cqrs-ddd/core@0.6.1)(@cqrs-ddd/pipeline-correlation@0.6.1)(@cqrs-ddd/pipeline-job-context@0.6.1)(@cqrs-ddd/pipeline@0.6.1)(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/cqrs@12.1.3(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.1.1)
     devDependencies:
+      '@cqrs-ddd/core':
+        specifier: ^0.6.1
+        version: 0.6.1
+      '@cqrs-ddd/pipeline':
+        specifier: ^0.6.1
+        version: 0.6.1
       '@nestjs/common':
-        specifier: ^12.1.1
-        version: 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+        specifier: ^12.5.1
+        version: 12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
       '@nestjs/core':
-        specifier: ^12.1.1
-        version: 12.1.1(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+        specifier: ^12.5.1
+        version: 12.6.0(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/cqrs':
-        specifier: ^12.1.0
-        version: 12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@types/node':
-        specifier: ^26.6.3
-        version: 26.6.3
+        specifier: ^12.1.3
+        version: 12.1.3(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@vitest/coverage-v8':
-        specifier: ^5.0.2
-        version: 5.0.2(vitest@5.0.2)
+        specifier: ^5.1.1
+        version: 5.1.1(vitest@5.1.1)
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -394,8 +391,8 @@ importers:
         specifier: ^7.8.2
         version: 7.8.2
       vitest:
-        specifier: ^5.0.2
-        version: 5.0.2(@opentelemetry/api@1.9.1)(@types/node@26.6.3)(@vitest/coverage-v8@5.0.2)(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
+        specifier: ^5.1.1
+        version: 5.1.1(@opentelemetry/api@1.9.1)(@types/node@26.6.3)(@vitest/coverage-v8@5.1.1)(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/pipeline-audit:
     dependencies:
@@ -407,8 +404,8 @@ importers:
         version: link:../uuidv7
     devDependencies:
       '@nestjs-pipeline/core':
-        specifier: workspace:*
-        version: link:../pipeline
+        specifier: 0.4.3
+        version: 0.4.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/cqrs@12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/common':
         specifier: ^12.1.1
         version: 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
@@ -441,8 +438,8 @@ importers:
         version: 4.0.8(keyv@5.6.0)(supports-color@10.2.2)
     devDependencies:
       '@nestjs-pipeline/core':
-        specifier: workspace:*
-        version: link:../pipeline
+        specifier: 0.4.3
+        version: 0.4.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/cqrs@12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/common':
         specifier: ^12.1.1
         version: 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
@@ -472,8 +469,8 @@ importers:
         specifier: ^7.0.1
         version: 7.0.1
       '@nestjs-pipeline/core':
-        specifier: workspace:*
-        version: link:../pipeline
+        specifier: 0.4.3
+        version: 0.4.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/common':
         specifier: ^12.1.1
         version: 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
@@ -492,25 +489,40 @@ importers:
 
   packages/pipeline-correlation:
     dependencies:
-      '@cqrs-ddd/untyped':
-        specifier: workspace:^
-        version: link:../untyped
-      '@cqrs-ddd/uuidv7':
-        specifier: workspace:^
-        version: link:../uuidv7
+      '@cqrs-ddd/nestjs':
+        specifier: ^0.6.1
+        version: 0.6.1(@cqrs-ddd/core@0.6.1)(@cqrs-ddd/pipeline-correlation@0.6.1)(@cqrs-ddd/pipeline-job-context@0.6.1)(@cqrs-ddd/pipeline@0.6.1)(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/cqrs@12.1.3(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.1.1)
     devDependencies:
+      '@cqrs-ddd/core':
+        specifier: ^0.6.1
+        version: 0.6.1
+      '@cqrs-ddd/pipeline':
+        specifier: ^0.6.1
+        version: 0.6.1
+      '@cqrs-ddd/pipeline-correlation':
+        specifier: ^0.6.1
+        version: 0.6.1
       '@nestjs/common':
-        specifier: ^12.1.1
-        version: 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+        specifier: ^12.5.1
+        version: 12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@nestjs/core':
+        specifier: ^12.5.1
+        version: 12.6.0(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/cqrs':
+        specifier: ^12.1.3
+        version: 12.1.3(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@vitest/coverage-v8':
-        specifier: ^5.0.2
-        version: 5.0.2(vitest@5.0.2)
+        specifier: ^5.1.1
+        version: 5.1.1(vitest@5.1.1)
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
+      rxjs:
+        specifier: ^7.8.2
+        version: 7.8.2
       vitest:
-        specifier: ^5.0.2
-        version: 5.0.2(@opentelemetry/api@1.9.1)(@types/node@26.6.3)(@vitest/coverage-v8@5.0.2)(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
+        specifier: ^5.1.1
+        version: 5.1.1(@opentelemetry/api@1.9.1)(@types/node@26.6.3)(@vitest/coverage-v8@5.1.1)(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/pipeline-deadletter:
     dependencies:
@@ -522,8 +534,8 @@ importers:
         version: link:../uuidv7
     devDependencies:
       '@nestjs-pipeline/core':
-        specifier: workspace:*
-        version: link:../pipeline
+        specifier: 0.4.3
+        version: 0.4.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/cqrs@12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/common':
         specifier: ^12.1.1
         version: 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
@@ -540,8 +552,8 @@ importers:
   packages/pipeline-feature-flags:
     devDependencies:
       '@nestjs-pipeline/core':
-        specifier: workspace:*
-        version: link:../pipeline
+        specifier: 0.4.3
+        version: 0.4.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/common':
         specifier: ^12.1.1
         version: 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
@@ -571,8 +583,8 @@ importers:
         version: link:../untyped
     devDependencies:
       '@nestjs-pipeline/core':
-        specifier: workspace:*
-        version: link:../pipeline
+        specifier: 0.4.3
+        version: 0.4.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/common':
         specifier: ^12.1.1
         version: 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
@@ -590,19 +602,41 @@ importers:
         version: 5.0.2(@opentelemetry/api@1.9.1)(@types/node@26.6.3)(@vitest/coverage-v8@5.0.2)(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/pipeline-job-context:
+    dependencies:
+      '@cqrs-ddd/nestjs':
+        specifier: ^0.6.1
+        version: 0.6.1(@cqrs-ddd/core@0.6.1)(@cqrs-ddd/pipeline-correlation@0.6.1)(@cqrs-ddd/pipeline-job-context@0.6.1)(@cqrs-ddd/pipeline@0.6.1)(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/cqrs@12.1.3(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.1.1)
     devDependencies:
+      '@cqrs-ddd/core':
+        specifier: ^0.6.1
+        version: 0.6.1
+      '@cqrs-ddd/pipeline':
+        specifier: ^0.6.1
+        version: 0.6.1
+      '@cqrs-ddd/pipeline-job-context':
+        specifier: ^0.6.1
+        version: 0.6.1
       '@nestjs/common':
-        specifier: ^12.1.1
-        version: 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+        specifier: ^12.5.1
+        version: 12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@nestjs/core':
+        specifier: ^12.5.1
+        version: 12.6.0(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/cqrs':
+        specifier: ^12.1.3
+        version: 12.1.3(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@vitest/coverage-v8':
-        specifier: ^5.0.2
-        version: 5.0.2(vitest@5.0.2)
+        specifier: ^5.1.1
+        version: 5.1.1(vitest@5.1.1)
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
+      rxjs:
+        specifier: ^7.8.2
+        version: 7.8.2
       vitest:
-        specifier: ^5.0.2
-        version: 5.0.2(@opentelemetry/api@1.9.1)(@types/node@26.6.3)(@vitest/coverage-v8@5.0.2)(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
+        specifier: ^5.1.1
+        version: 5.1.1(@opentelemetry/api@1.9.1)(@types/node@26.6.3)(@vitest/coverage-v8@5.1.1)(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/pipeline-opentelemetry:
     dependencies:
@@ -611,8 +645,8 @@ importers:
         version: link:../untyped
     devDependencies:
       '@nestjs-pipeline/core':
-        specifier: workspace:*
-        version: link:../pipeline
+        specifier: 0.4.3
+        version: 0.4.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/cqrs@12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/common':
         specifier: ^12.1.1
         version: 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
@@ -636,8 +670,8 @@ importers:
         version: link:../safe-stringify
     devDependencies:
       '@nestjs-pipeline/core':
-        specifier: workspace:*
-        version: link:../pipeline
+        specifier: 0.4.3
+        version: 0.4.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/common':
         specifier: ^12.1.1
         version: 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
@@ -660,8 +694,8 @@ importers:
   packages/pipeline-resilience:
     devDependencies:
       '@nestjs-pipeline/core':
-        specifier: workspace:*
-        version: link:../pipeline
+        specifier: 0.4.3
+        version: 0.4.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/cqrs@12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/common':
         specifier: ^12.1.1
         version: 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
@@ -697,8 +731,8 @@ importers:
         version: link:../untyped
     devDependencies:
       '@nestjs-pipeline/core':
-        specifier: workspace:*
-        version: link:../pipeline
+        specifier: 0.4.3
+        version: 0.4.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/common':
         specifier: ^12.1.1
         version: 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
@@ -951,6 +985,9 @@ packages:
   '@borewit/text-codec@0.2.2':
     resolution: {integrity: sha512-DDaRehssg1aNrH4+2hnj1B7vnUGEjU6OIlyRdkMd0aUdIUvKXrJfXsy8LVtXAy7DRvYVluWbMspsRhz2lcW0mQ==}
 
+  '@borewit/text-codec@0.2.3':
+    resolution: {integrity: sha512-49CycTz1aAZmvFcwkeFyhud1HUmRIB5Tabf7ALV+VA4Iu85MTfz2cUwzPagMFAdVBvrWdkCxG67I30tUwwpKsw==}
+
   '@bruits/satteri-darwin-arm64@0.10.5':
     resolution: {integrity: sha512-27KTVl4TJkVahMy/ohyA7qd4938G5UNneFUz/PsScYfpIhj0IVAS23mpcJXdPF44sa6nva198lmV/cKIb2YPyA==}
     cpu: [arm64]
@@ -1026,6 +1063,10 @@ packages:
     resolution: {integrity: sha512-Q7jkjQUwBqV8ckNzsTN1sAVvgbZ2e1cgkvu9scoyowgE/r00rl3nAlO2J0d1G5YAurn6sWeukoZDB96x+dxzRQ==}
     engines: {node: '>=22.12.0'}
 
+  '@cqrs-ddd/core@0.6.1':
+    resolution: {integrity: sha512-6Svndms4CvCGeY7MwD3d7q8p5d2uEbAPqWDxNKkCuv+/t1wyH3hIDBpZIzGOjTWwaAPXSuma0RduQLmkXMb6jw==}
+    engines: {node: '>=22.12.0'}
+
   '@cqrs-ddd/mikro-orm@0.5.1':
     resolution: {integrity: sha512-gxiLtvLMWwt3boxDw/Ai83HNQA5+dSDv87O59ZO8D0Sao3CoeXJTzFA6FEtrZhIhMBgnxmlOXGe0ByHkQl9X7Q==}
     engines: {node: '>=22.17.0'}
@@ -1097,6 +1138,38 @@ packages:
       '@cqrs-ddd/pipeline-zod':
         optional: true
 
+  '@cqrs-ddd/nestjs@0.6.1':
+    resolution: {integrity: sha512-Jj/lUgKGzkq3YxFCsGAiZPXK9J3K9YpoiZP41CQW7Boo8O6qdgr6nkGLmJFa6kIF7aWEnvWdO4BIqjqehx/BLQ==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/core': ^0.6.1
+      '@cqrs-ddd/pipeline': ^0.6.1
+      '@cqrs-ddd/pipeline-casl': ^0.6.1
+      '@cqrs-ddd/pipeline-correlation': ^0.6.1
+      '@cqrs-ddd/pipeline-feature-flags': ^0.6.1
+      '@cqrs-ddd/pipeline-idempotency': ^0.6.1
+      '@cqrs-ddd/pipeline-job-context': ^0.6.1
+      '@cqrs-ddd/pipeline-rate-limit': ^0.6.1
+      '@cqrs-ddd/pipeline-zod': ^0.6.1
+      '@nestjs/common': ^12.1.1
+      '@nestjs/core': ^12.1.1
+      '@nestjs/cqrs': ^12.1.0
+    peerDependenciesMeta:
+      '@cqrs-ddd/pipeline-casl':
+        optional: true
+      '@cqrs-ddd/pipeline-correlation':
+        optional: true
+      '@cqrs-ddd/pipeline-feature-flags':
+        optional: true
+      '@cqrs-ddd/pipeline-idempotency':
+        optional: true
+      '@cqrs-ddd/pipeline-job-context':
+        optional: true
+      '@cqrs-ddd/pipeline-rate-limit':
+        optional: true
+      '@cqrs-ddd/pipeline-zod':
+        optional: true
+
   '@cqrs-ddd/pipeline-audit@0.5.1':
     resolution: {integrity: sha512-xupi+poPnj1Cl9LI2CRX5Y9+TuLNtk+gYS+qNHlKw1dHfXBe94QcJINFbXUH3QKaxn0oN7vBalppYr4RIStu+Q==}
     engines: {node: '>=22.12.0'}
@@ -1124,13 +1197,6 @@ packages:
       '@keyv/sqlite':
         optional: true
 
-  '@cqrs-ddd/pipeline-casl@0.5.0':
-    resolution: {integrity: sha512-6AiDVGkr/VN+YwdBTm7B2uB09Y1/OvwX1h63syn93tO/u7y30Ws4xm5WwFCi7ESFmwVLKl5cSdC2BP4BQdxzUg==}
-    engines: {node: '>=22.12.0'}
-    peerDependencies:
-      '@casl/ability': ^7.0.0
-      '@cqrs-ddd/pipeline': ^0.5.0
-
   '@cqrs-ddd/pipeline-casl@0.5.1':
     resolution: {integrity: sha512-j5o8IprfsF0fVWP+GPSGIRo58HmRWmQuM7eT/79LHwUS+f633+M/ybrCvFAEBOVyJJ4qK8+XXcadGXTinwdEMQ==}
     engines: {node: '>=22.12.0'}
@@ -1146,18 +1212,15 @@ packages:
     resolution: {integrity: sha512-mxrBFtB8Akm4EN0kFJK75XpvmpsNm2cRYtIgcigxFjvg2L5rEck/mKXGukO0dQCft2VL2dEWh39b67h+2oSUGg==}
     engines: {node: '>=22.12.0'}
 
+  '@cqrs-ddd/pipeline-correlation@0.6.1':
+    resolution: {integrity: sha512-VTHE90Um11Wrj6wQFV7/0cEU8AF0itfSG0CCZB7cKdRufydqX9GgbDxfLZZToUVq5vEGpv2fWtNlK9mDO6EzXw==}
+    engines: {node: '>=22.12.0'}
+
   '@cqrs-ddd/pipeline-deadletter@0.5.1':
     resolution: {integrity: sha512-9F6Ui9qvTmfouiUde0jHPyG2xBe+2ksq3K2ftm0Zp0I+RmIQgY0prlD65Juh1Gom2ABHL+kYlckapeeQkCt/6g==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
       '@cqrs-ddd/pipeline': ^0.5.1
-
-  '@cqrs-ddd/pipeline-feature-flags@0.5.0':
-    resolution: {integrity: sha512-He03QpJ1aiH1lADEYZ98j52lE5fus/H+1uoI5iVjwXSIOsKdk1FSpR4a0Vyz0Gzb8QsAPKHk35AnWoB68aFK5w==}
-    engines: {node: '>=22.12.0'}
-    peerDependencies:
-      '@cqrs-ddd/pipeline': ^0.5.0
-      '@openfeature/server-sdk': ^1.13.0
 
   '@cqrs-ddd/pipeline-feature-flags@0.5.1':
     resolution: {integrity: sha512-muuRlt0mMA08uh3+Kze2L+qAlBvsq1dkg4LhrfQFkAjjXQLTNawPCpsR57UGCUb9f3miHoNX0xpD10ZkKGaKBw==}
@@ -1165,12 +1228,6 @@ packages:
     peerDependencies:
       '@cqrs-ddd/pipeline': ^0.5.1
       '@openfeature/server-sdk': ^1.13.0
-
-  '@cqrs-ddd/pipeline-idempotency@0.5.0':
-    resolution: {integrity: sha512-l/GFSJOqaS3UeBr3svDcGtTXVqt3GSvOqPcxEpVspuGHkkVkTA2120Oqrdn2/VAD//bSPstNNwdECDUiB2M+7w==}
-    engines: {node: '>=22.12.0'}
-    peerDependencies:
-      '@cqrs-ddd/pipeline': ^0.5.0
 
   '@cqrs-ddd/pipeline-idempotency@0.5.1':
     resolution: {integrity: sha512-h/pC7nCjVKZIa6XvE52GJgYEv9yIDFGZ+GOx8Gc03G8ykYkrfOom6khcv+0nEvoJD6j5pw27mFk9ch9ivt8SpA==}
@@ -1186,18 +1243,16 @@ packages:
     resolution: {integrity: sha512-MD/4hAmRm8Tf/z9MUHV6VVcQ46kAaaMlfAiLX/+7moI23euOMS0UyRxjv4lJn9+AJu1R8w/W36HaUSmQlbKsNw==}
     engines: {node: '>=22.12.0'}
 
+  '@cqrs-ddd/pipeline-job-context@0.6.1':
+    resolution: {integrity: sha512-cC7iXOlFNtnbfU1WWokJaT//i18kufIUN+W5Y7pB3zQdvtJvLYQFFlWhzRwmv0GPr03TTSCzNK9Y8w49Ft1L+Q==}
+    engines: {node: '>=22.12.0'}
+
   '@cqrs-ddd/pipeline-opentelemetry@0.5.1':
     resolution: {integrity: sha512-KiZTuy/R1Sj7QYkmf9/PzIffehUFL8Fi7dXHvosAEV7wthN7JKuagnUYL5KxIyK3gyQEjqsPU1vbDFB9Crw9eA==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
       '@cqrs-ddd/pipeline': ^0.5.1
       '@opentelemetry/api': ^1.9.0
-
-  '@cqrs-ddd/pipeline-rate-limit@0.5.0':
-    resolution: {integrity: sha512-d85COVGW0B9CCGRLMKYUdgCehqyfq6JoE76uV3+WQzSUJ/1nu498ir7irbDVYlWmMWZZW5XoKfdE9f6NutqUmQ==}
-    engines: {node: '>=22.12.0'}
-    peerDependencies:
-      '@cqrs-ddd/pipeline': ^0.5.0
 
   '@cqrs-ddd/pipeline-rate-limit@0.5.1':
     resolution: {integrity: sha512-C2gG+zDJFc+bLKnpM5FBvmkQFQTvDG/zOdH1O5dMQX3Yui0kRXHg93dbnaEk9Px4nOfwBAOxL33EKXNDV7rCmg==}
@@ -1216,13 +1271,6 @@ packages:
     resolution: {integrity: sha512-UHawYWGtwUyz2iUneHXZTAy7Ve3aI3gB3Nj7bdUmLObXRlA3SCkbTVXnThnniWhx1WC9e7rJ+cy2HYQfKKogBQ==}
     engines: {node: '>=22.12.0'}
 
-  '@cqrs-ddd/pipeline-zod@0.5.0':
-    resolution: {integrity: sha512-r8gRInPp/6lBb0/nkkd/yE+/8KO7LhsysYeO/1zT/K3lH42D3cpEkxabwQ2AGUCjUqlLEQvcoZqWnkpq9FZ9jA==}
-    engines: {node: '>=22.12.0'}
-    peerDependencies:
-      '@cqrs-ddd/pipeline': ^0.5.0
-      zod: ^4.3.0
-
   '@cqrs-ddd/pipeline-zod@0.5.1':
     resolution: {integrity: sha512-/yCM3RLUU1cz4lHLLhExEYet3maSxYq64F35tH7hgP/Vwm5ttsFWDZ4sLJjM6495IcuhhrLu96Y9FtJV+ZuCjA==}
     engines: {node: '>=22.12.0'}
@@ -1238,12 +1286,28 @@ packages:
     resolution: {integrity: sha512-rhznFRUXpAHnHZ+pcYSIFIOvo6KYkkqSs9855jSQg2OOJnjpvD3k+jofDCNQKmuFSVAs1Y4FKbNz0HPtZeNujw==}
     engines: {node: '>=22.12.0'}
 
+  '@cqrs-ddd/pipeline@0.6.1':
+    resolution: {integrity: sha512-Mc2KkYAyMGyrD3+9GPM3LmUJxb38jlwzoXlf0aLwuXxAlpjwVLUtG7N8qMEP6SVSKvxpA729vOMRi/WlX4MHjw==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/safe-stringify@0.4.2':
+    resolution: {integrity: sha512-prxI/4agBqh/iTv27j+e0bE3MM4+YROcrG6dPBCVGtjdXZClap8L1I7wEEdq5gbpC+Da7DTv1ZHDrgGk8xvNkQ==}
+    engines: {node: '>=22.12.0'}
+
   '@cqrs-ddd/safe-stringify@0.5.0':
     resolution: {integrity: sha512-FaIqroF6OZOGsCayxOiqIaQ5RH/SiUiQJJQb949HaYOnrRvh2+TEryV4iblZHsQ7AzBQ41nKLRZ00M9VyFM0aQ==}
     engines: {node: '>=22.12.0'}
 
   '@cqrs-ddd/safe-stringify@0.5.1':
     resolution: {integrity: sha512-73MD+zQdWnYINF5ZppSj+6pp/so848+APNzT6hNK4pI6AZ9f31qBaE+fYeVQIqnvTwPb8yHQu1MbPiqOjNw+yA==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/safe-stringify@0.6.1':
+    resolution: {integrity: sha512-GavbfTYqCifUnBNVeTECTON6e1aCBnaBjMkvNyjnMbKO4l6pKAvALO/5YK7R/fpr9gWhEQkGbBc9np4BKT7Akg==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/untyped@0.4.2':
+    resolution: {integrity: sha512-R9pdBE8qVcI/uedFAsRJLwbvK4zy5Tsj4fG9Hq6S1rpZVuSNVY3AO5v7eWlj+hNgnPZpafdth/f3OJ0sqJLxGw==}
     engines: {node: '>=22.12.0'}
 
   '@cqrs-ddd/untyped@0.5.0':
@@ -1254,12 +1318,24 @@ packages:
     resolution: {integrity: sha512-73AMkVT/oqSwIuLI5kuGoOC7gChrBfGzf5tMjMMoU8Aq0xcgWKWJtJKFEoq2iuVqSdgwWLgzJ4qNYbKooVA1mw==}
     engines: {node: '>=22.12.0'}
 
+  '@cqrs-ddd/untyped@0.6.1':
+    resolution: {integrity: sha512-GTiA8Nlr8lie6jML8FtcCGKWycd3NGvO7F2nT92FHmv27A/sq8MbpAQhRpyKurmzZowkmcRhFchFDIeTNY20Dw==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/uuidv7@0.4.2':
+    resolution: {integrity: sha512-s4ZR0whQF+jqUYtuv/w+q+VgYKhDvYsI+WYTIYFEioWoRrXjU6+nA/F2lntOyrh3eDPIiEYDhLqPcFXjbmW5lQ==}
+    engines: {node: '>=22.12.0'}
+
   '@cqrs-ddd/uuidv7@0.5.0':
     resolution: {integrity: sha512-a7vz8PGAdgSSRU3hJ5gOA279go0fiktEqSu/DTuN1qK8fnQ74gTPHvhnnSpbnCBOvLKCKUYnM0+wpvfFhyk/CQ==}
     engines: {node: '>=22.12.0'}
 
   '@cqrs-ddd/uuidv7@0.5.1':
     resolution: {integrity: sha512-OeEXlTve9Z2QkBN6HN+4KHKBZLVGgJKN8o9o5NMObu6yVk8Tju87vvqzt12TjcNRmXGbxNIgIDHJW5CEfjqVBQ==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/uuidv7@0.6.1':
+    resolution: {integrity: sha512-1YDRtlltf+32LtekVjDBUKZbaEPDSAVbOh7WwsZ9EElEZzbCyy7H/Xwgww5ot8JC0ie7YBcIDe6WNvs5sPa4Zg==}
     engines: {node: '>=22.12.0'}
 
   '@ctrl/tinycolor@4.2.1':
@@ -2062,6 +2138,16 @@ packages:
   '@neon-rs/load@0.0.4':
     resolution: {integrity: sha512-kTPhdZyTQxB+2wpiRcFWrDcejc4JI6tkPuS7UZCG4l6Zvc5kU/gGQ/ozvHTh1XR5tS+UlfAfGuPajjzQjCiHCw==}
 
+  '@nestjs-pipeline/core@0.4.3':
+    resolution: {integrity: sha512-wqy6cZHS96HrQja8bsA03wq3uDWW7HnS9IS2i4WCkwRSVGRLHRKHTD20lj9CP7shiQWULt4s64F0Lceq38QkMA==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@nestjs/common': ^12.1.0
+      '@nestjs/core': ^12.1.0
+      '@nestjs/cqrs': ^12.1.0
+      reflect-metadata: ^0.1.13 || ^0.2.0
+      rxjs: ^7.0.0
+
   '@nestjs/bull-shared@12.0.0':
     resolution: {integrity: sha512-OShKmwIt00oK2DIqKP4mjh9C2RQsoHPZbBsQwbnETPmK/+Ld1xyYQa1WOrYKKA8qoSzZJvxQaA6/4sV5SfAIyA==}
     peerDependencies:
@@ -2077,6 +2163,19 @@ packages:
 
   '@nestjs/common@12.1.1':
     resolution: {integrity: sha512-foR+9SDz53vd4WXvN5UEXbcU0i/i9mf/zXqbAWlEDQlxAooS4kZoY5X/Zr2DsUJZaLPOk3kFQdu6EhbWrhAoDQ==}
+    peerDependencies:
+      class-transformer: '>=0.4.1'
+      class-validator: '>=0.13.2'
+      reflect-metadata: ^0.1.12 || ^0.2.0
+      rxjs: ^7.1.0
+    peerDependenciesMeta:
+      class-transformer:
+        optional: true
+      class-validator:
+        optional: true
+
+  '@nestjs/common@12.6.0':
+    resolution: {integrity: sha512-qlCebomQxvtNSdOQfgBryWwi2gjUYGTmXnwRP0vLp5xdKfR3DfAl4KRsvuXEbAUCBPUtHsgWSxh76IP1pc262A==}
     peerDependencies:
       class-transformer: '>=0.4.1'
       class-validator: '>=0.13.2'
@@ -2106,6 +2205,24 @@ packages:
       '@nestjs/websockets':
         optional: true
 
+  '@nestjs/core@12.6.0':
+    resolution: {integrity: sha512-LmIF9DtTw4HgGWxlNZYFr3L+D8hw8vzwBV7Fkgr+lcVfeYYFBshQpwuwt6ewT6YvDnvIgI8+GdRDV7RbcVAiRA==}
+    engines: {node: '>= 20'}
+    peerDependencies:
+      '@nestjs/common': ^12.0.0
+      '@nestjs/microservices': ^12.0.0
+      '@nestjs/platform-express': ^12.0.0
+      '@nestjs/websockets': ^12.0.0
+      reflect-metadata: ^0.1.12 || ^0.2.0
+      rxjs: ^7.1.0
+    peerDependenciesMeta:
+      '@nestjs/microservices':
+        optional: true
+      '@nestjs/platform-express':
+        optional: true
+      '@nestjs/websockets':
+        optional: true
+
   '@nestjs/cqrs@12.1.0':
     resolution: {integrity: sha512-5V8liWbpPzkkQhauorh0YyOPZYfnzWMwFBnjnc4QRjksG2wliYtbJfLr7w83h0WMGT8DsQ19v/vwlnvaKF6jrg==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2114,6 +2231,15 @@ packages:
       '@nestjs/core': ^12.0.0
       reflect-metadata: ^0.1.13 || ^0.2.0
       rxjs: ^7.2.0
+
+  '@nestjs/cqrs@12.1.3':
+    resolution: {integrity: sha512-o79LQNPqYGdBCNlKpUIohFXmw6PoWSclnranam+cYoreOBxpRT7dwjyn96VYL9NO7LtfI9PUrICvmEwtbYl6Ww==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    peerDependencies:
+      '@nestjs/common': ^12.0.0
+      '@nestjs/core': ^12.0.0
+      reflect-metadata: ^0.1.13 || ^0.2.0
+      rxjs: ^7.3.0
 
   '@nestjs/mapped-types@12.0.0':
     resolution: {integrity: sha512-aX7lxZcqXldtnSr0bgT2ZPQvpTpIwBMW1GMX29o4s3q02vmq6JoTYuPW0GwYXa8BiFMRX7WbGZVDA703pNqOMQ==}
@@ -2875,6 +3001,10 @@ packages:
     resolution: {integrity: sha512-2mAv+8pkG6GIZiF1kNg1jAjh27IDxEPKwdGul3snfztFerfPGI1LjDezZp3i7BElXompqEtPmoPx6c2wgtWsOA==}
     engines: {node: '>=18'}
 
+  '@tokenizer/inflate@0.6.1':
+    resolution: {integrity: sha512-EuqSyHdOXN61cc5/rsW6uUn1TJZJGZr56jlkUbsLwVJ6uHgvwQyFkYfOCf+zzPFAYjftPk1WeJnEhpLVvzbm1A==}
+    engines: {node: '>=18'}
+
   '@tokenizer/token@0.3.0':
     resolution: {integrity: sha512-OvjF+z51L3ov0OyAU0duzsYuvO01PH7x4t6DJx+guahgTnBHkhJdG7soQeTSFLWN3efnHyibZ4Z8l2EuWwJN3A==}
 
@@ -3154,12 +3284,29 @@ packages:
       '@vitest/browser':
         optional: true
 
+  '@vitest/coverage-v8@5.1.1':
+    resolution: {integrity: sha512-xL4NkbVx/UqqDHaXSOyvB8qsSoLQ+dVNGR9H2Bh/4ggQtmaPFNPUC9gZQwKZePLOQ6WDcgwXVnPulFW9eCHt0w==}
+    peerDependencies:
+      '@vitest/browser': 5.1.1
+      vitest: 5.1.1
+    peerDependenciesMeta:
+      '@vitest/browser':
+        optional: true
+
   '@vitest/istanbul-lib-coverage@1.0.2':
     resolution: {integrity: sha512-9J/JMwOf9AoJhAywhrn7ScKTL38hsWQP/qPG60OtaAFcQ5OXPwKsxZFlbnuCKmZ61m8/lGgHYnFpdyQZUvG/iA==}
     engines: {node: '>=22'}
 
+  '@vitest/istanbul-lib-coverage@2.1.1':
+    resolution: {integrity: sha512-pF9nMHHuyQzyEXdkWX3d4wElEKjymfL5TEoofegJn/jK2WjmTLOcJKfJ7/YwYGYdbZf8Ebrt4VDUoBPiTuO9zg==}
+    engines: {node: '>=22'}
+
   '@vitest/istanbul-lib-report@1.0.2':
     resolution: {integrity: sha512-gUsfXZJbzPamoIY5TvHFiMMoXESBrUMo+xqaj+rYrWI69+EnvRlYBlP96ZnHPY4vX8kyUpgAnFUCg5wZG/HkDQ==}
+    engines: {node: '>=22'}
+
+  '@vitest/istanbul-lib-report@2.1.1':
+    resolution: {integrity: sha512-Qba+8OpQQAbWrmq3u1olh6jqE/vyW4OYJe6TLrrTBpXhjJhbY7Os69wyVvMQmNA64KJhGd5nQ/c7l4io8tPCHQ==}
     engines: {node: '>=22'}
 
   '@vitest/mocker@5.0.2':
@@ -3173,8 +3320,22 @@ packages:
       vite:
         optional: true
 
+  '@vitest/mocker@5.1.1':
+    resolution: {integrity: sha512-b2OgTB4+3ImWIVafXKazJXwLKwQxUNnix6b3xUvUTMh7RyXlrtzoxfZr8aEz9zkHOMAS4K5lu3TvFWoiVeVTQg==}
+    peerDependencies:
+      msw: ^2.4.9 || ^3.0.0
+      vite: ^6.0.0 || ^7.0.0 || ^8.0.0
+    peerDependenciesMeta:
+      msw:
+        optional: true
+      vite:
+        optional: true
+
   '@vitest/spy@5.0.2':
     resolution: {integrity: sha512-Ijc7T1nT9efNb5LxvjaBrEqw3f/QwUv5EE0nKqZxgqsaV/FxAAZ8baGylA8X/Z2oS4Lp+K74Jr6dTJsDKxJDeg==}
+
+  '@vitest/spy@5.1.1':
+    resolution: {integrity: sha512-6K8C6alQG1/Yc8/ZI22iJS7JEsxPdVzqtqDq+/xM4Z0mGVykemMVjLhqMy/q6/IHYG3kKD8hKSwRen/ZdyI9vQ==}
 
   abbrev@1.1.1:
     resolution: {integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==}
@@ -3521,6 +3682,10 @@ packages:
 
   chai@6.2.2:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
+    engines: {node: '>=18'}
+
+  chai@6.3.0:
+    resolution: {integrity: sha512-XWAtwJ6OHO+tj0EKCs0Y2UamnyOxseZWltU4x2U2wh8g4AigdjwvtUjvLP2tqkA/avxHEtzxNaqGq/YGNwckKg==}
     engines: {node: '>=18'}
 
   chalk@4.1.2:
@@ -4052,6 +4217,10 @@ packages:
 
   file-type@22.1.1:
     resolution: {integrity: sha512-sEB0oStmeLGtpmSAD88RDNuLsvhv4iC3u0lE25CUvfCULvj49xoQ3l3K525Vn+ZzsZ6DOLajQCV6RmhwwhqiJg==}
+    engines: {node: '>=22'}
+
+  file-type@22.3.0:
+    resolution: {integrity: sha512-PrPedgnnWl5bWz3JHgar0QSzRvzeyFh7dZ9JpYOgcPZu4KALS9zw4MMa6qXRYyjeBsAlpaWB2boLuG991+0HIQ==}
     engines: {node: '>=22'}
 
   file-uri-to-path@1.0.0:
@@ -4646,6 +4815,9 @@ packages:
 
   magic-string@1.4.2:
     resolution: {integrity: sha512-vG+rjFRj1PqdIBozIxAGMjPlOhaVe+GXpbttY/iSK7rGcJRMlwNJO7dcUwmUqkymsFLJiNGI06t4D7Fr7yRC9g==}
+
+  magic-string@1.4.5:
+    resolution: {integrity: sha512-oLLC2+YvQUfAa+vxoufE/yc1icb87M9iXIRqAoR/2EhE/8cb3SF/+Gi0c2By1B+5Vz2e2vQtUvHiu1+63Znh+w==}
 
   magicast@0.5.5:
     resolution: {integrity: sha512-UicdXN8zQ3JHlxVq+28afMXPr1z7WNY6+7EJnzTdQWkTAlMLF5fNCCKxJHBQwGaNGR11581EiQmQzx73+MvszA==}
@@ -5674,6 +5846,9 @@ packages:
   std-env@4.2.0:
     resolution: {integrity: sha512-oCUKSupKTHX53EyjDtuZQ64pjLJ6yYCtpmEw0goYxtjG9KpbRe8KAsl2tBUGU9DyMcJ0RwJ8GqJAFzMXcXW1Rw==}
 
+  std-env@4.3.0:
+    resolution: {integrity: sha512-OtU/EgQ1kIm5KwqQpBC6ZEMXrZRui11w8zgfTWp8cdO9B8OaPsbA8bTHO2P+HNo1VlUTGMVBwPhydu6poeXiag==}
+
   stream-combiner@0.2.2:
     resolution: {integrity: sha512-6yHMqgLYDzQDcAkL+tjJDC5nSNuNIx0vZtRZeiPh7Saef7VHX9H5Ijn9l2VIol2zaNYlYEX6KyuT/237A58qEQ==}
 
@@ -5723,6 +5898,10 @@ packages:
 
   strtok3@10.3.5:
     resolution: {integrity: sha512-ki4hZQfh5rX0QDLLkOCj+h+CVNkqmp/CMf8v8kZpkNVK6jGQooMytqzLZYUVYIZcFZ6yDB70EfD8POcFXiF5oA==}
+    engines: {node: '>=18'}
+
+  strtok3@10.8.0:
+    resolution: {integrity: sha512-e6bW3fD6V01DPmcbLfNtn0cjsiHvTKS/hivgbzqYMfHb/nLes4QQ0H5QBxlkPQayF4xv08AvlSgptGwN86Eemw==}
     engines: {node: '>=18'}
 
   superagent@10.4.1:
@@ -5799,6 +5978,10 @@ packages:
     resolution: {integrity: sha512-78U2TlB2CnVenajOFzf3BKSm0J6oz5L0NV7g32LCPccvYc0lbWvys4d3uUUCS2B1N8PAf2+aekR8i1KbC3HO7Q==}
     engines: {node: '>=20.0.0'}
 
+  tinybench@6.2.4:
+    resolution: {integrity: sha512-SQ52jEncXxbMCzJuY2A/jGIbbAu6NYsBWW7grz2pNE+EnzQdoGaoBfpk4qC/opE7qiUcGmGgaGIz5EoHdS1O9w==}
+    engines: {node: '>=20.0.0'}
+
   tinyclip@1.0.3:
     resolution: {integrity: sha512-nTv2raKFMzGG6JJp0lpNDsRPdfFE6UHlu2rVEjXo8vkx1ZS3LW2CVXqIaLu8xZlu+6tbFs9V58Qc/Jmk/Ii7wA==}
     engines: {node: ^16.14.0 || >= 17.3.0}
@@ -5813,6 +5996,10 @@ packages:
 
   tinyrainbow@3.1.1:
     resolution: {integrity: sha512-yau8yJdTt989Mm0Bd/236QnzEiPf2xLLTqUZRUJOo/3CB078LSwzei343DgtJVmfJKJE3TMINY1u42SQsP6mXw==}
+    engines: {node: '>=14.0.0'}
+
+  tinyrainbow@3.2.0:
+    resolution: {integrity: sha512-LgO3D9yZJjApUiuUfl9iFAwrtaX4+lok3wJIqttGoKCHlWUqHqbQpnxCf82L8FjgKsh4iGo78hqJwgL8F6To2A==}
     engines: {node: '>=14.0.0'}
 
   tmp@0.2.7:
@@ -5835,6 +6022,10 @@ packages:
     resolution: {integrity: sha512-dRXchy+C0IgK8WPC6xvCHFRIWYUbqqdEIKPaKo/AcTUNzwLTK6AH7RjdLWsEZcAN/TBdtfUw3PYEgPr5VPr6ww==}
     engines: {node: '>=14.16'}
 
+  token-types@6.2.0:
+    resolution: {integrity: sha512-s9euYHM//T3loJtbNUYdbAzsMlvKBeRS+XCLFy+UGosMQH19Hwjap5k19i4PPAEJJBsVIpMpVTxl4fIqCuNfUg==}
+    engines: {node: '>=14.16'}
+
   trim-lines@3.0.1:
     resolution: {integrity: sha512-kRj8B+YHZCc9kQYdWfJB2/oUl9rA99qbowYYBtr4ui4mZyAQ2JpvVBd/6U2YloATfqBhBTSMhTpgBHtU0Mf3Rg==}
 
@@ -5848,6 +6039,9 @@ packages:
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
+
+  tslib@2.9.1:
+    resolution: {integrity: sha512-a4Ux9VKuIMHsOS7ENbEq6hK2ZGYIT27Rtl0E4eD9KqwxhKiQeMZE/9xb3IdYwWaSOyIBQLExhQgXDTYoiCxnWA==}
 
   tsx@4.23.15:
     resolution: {integrity: sha512-Yiex1Ovn8z2xPpOWckIiysV1SSyRMY9BkLF++q0yKiDxCqRhosKfMg3janKkiLBwZ5c/YryloKwGZcrEmtwxKw==}
@@ -6187,6 +6381,47 @@ packages:
       jsdom:
         optional: true
 
+  vitest@5.1.1:
+    resolution: {integrity: sha512-trVmzUFOSraCZcI3uZIMD5FqBh4atFkC/XuJP/IU7qtyQay0FCs3Ia+0QiQ2JJwGyWG/xrcBoJNel2+O7kEZ0g==}
+    engines: {node: ^22.12.0 || ^24.0.0 || >=26.0.0}
+    hasBin: true
+    peerDependencies:
+      '@edge-runtime/vm': '*'
+      '@opentelemetry/api': ^1.9.0
+      '@types/node': ^22.0.0 || >=24.0.0
+      '@vitest/browser-playwright': 5.1.1
+      '@vitest/browser-preview': 5.1.1
+      '@vitest/browser-webdriverio': ^5.0.0-beta.5 || >=5.0.0
+      '@vitest/coverage-istanbul': 5.1.1
+      '@vitest/coverage-v8': 5.1.1
+      '@vitest/ui': 5.1.1
+      happy-dom: '*'
+      jsdom: '*'
+      vite: ^6.4.0 || ^7.0.0 || ^8.0.0
+    peerDependenciesMeta:
+      '@edge-runtime/vm':
+        optional: true
+      '@opentelemetry/api':
+        optional: true
+      '@types/node':
+        optional: true
+      '@vitest/browser-playwright':
+        optional: true
+      '@vitest/browser-preview':
+        optional: true
+      '@vitest/browser-webdriverio':
+        optional: true
+      '@vitest/coverage-istanbul':
+        optional: true
+      '@vitest/coverage-v8':
+        optional: true
+      '@vitest/ui':
+        optional: true
+      happy-dom:
+        optional: true
+      jsdom:
+        optional: true
+
   web-namespaces@2.0.1:
     resolution: {integrity: sha512-bKr1DkiNa2krS7qxNtdrtHAmzuYGFQLiQ13TsorsdT6ULTkPLKuu5+GsFpDlg6JFjUTwX2DyhMPG2be8uPrqsQ==}
 
@@ -6199,6 +6434,11 @@ packages:
   which@2.0.2:
     resolution: {integrity: sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==}
     engines: {node: '>= 8'}
+    hasBin: true
+
+  why-is-node-running@3.2.1:
+    resolution: {integrity: sha512-Tb2FUhB4vUsGQlfSquQLYkApkuPAFQXGFzxWKHHumVz2dK+X1RUm/HnID4+TfIGYJ1kTcwOaCk/buYCEJr6YjQ==}
+    engines: {node: '>=20.11'}
     hasBin: true
 
   why-is-node-running@3.2.2:
@@ -6481,6 +6721,8 @@ snapshots:
 
   '@borewit/text-codec@0.2.2': {}
 
+  '@borewit/text-codec@0.2.3': {}
+
   '@bruits/satteri-darwin-arm64@0.10.5':
     optional: true
 
@@ -6547,12 +6789,17 @@ snapshots:
       '@cqrs-ddd/safe-stringify': 0.5.1
       '@cqrs-ddd/uuidv7': 0.5.1
 
+  '@cqrs-ddd/core@0.6.1':
+    dependencies:
+      '@cqrs-ddd/safe-stringify': 0.6.1
+      '@cqrs-ddd/uuidv7': 0.6.1
+
   '@cqrs-ddd/mikro-orm@0.5.1(@cqrs-ddd/core@0.5.1)(@mikro-orm/core@7.2.3)':
     dependencies:
       '@cqrs-ddd/core': 0.5.1
       '@mikro-orm/core': 7.2.3
 
-  '@cqrs-ddd/nestjs@0.5.0(@cqrs-ddd/core@0.5.0)(@cqrs-ddd/pipeline-casl@0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-correlation@0.5.0)(@cqrs-ddd/pipeline-feature-flags@0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0)))(@cqrs-ddd/pipeline-idempotency@0.5.0(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-job-context@0.5.0)(@cqrs-ddd/pipeline-rate-limit@0.5.0(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-zod@0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5))(@cqrs-ddd/pipeline@0.5.0)(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))':
+  '@cqrs-ddd/nestjs@0.5.0(@cqrs-ddd/core@0.5.0)(@cqrs-ddd/pipeline-casl@0.5.1(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-correlation@0.5.0)(@cqrs-ddd/pipeline-feature-flags@0.5.1(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0)))(@cqrs-ddd/pipeline-idempotency@0.5.1(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-job-context@0.5.0)(@cqrs-ddd/pipeline-rate-limit@0.5.1(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-zod@0.5.1(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5))(@cqrs-ddd/pipeline@0.5.0)(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))':
     dependencies:
       '@cqrs-ddd/core': 0.5.0
       '@cqrs-ddd/pipeline': 0.5.0
@@ -6560,13 +6807,13 @@ snapshots:
       '@nestjs/core': 12.1.1(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/cqrs': 12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
     optionalDependencies:
-      '@cqrs-ddd/pipeline-casl': 0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0)
+      '@cqrs-ddd/pipeline-casl': 0.5.1(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0)
       '@cqrs-ddd/pipeline-correlation': 0.5.0
-      '@cqrs-ddd/pipeline-feature-flags': 0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))
-      '@cqrs-ddd/pipeline-idempotency': 0.5.0(@cqrs-ddd/pipeline@0.5.0)
+      '@cqrs-ddd/pipeline-feature-flags': 0.5.1(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))
+      '@cqrs-ddd/pipeline-idempotency': 0.5.1(@cqrs-ddd/pipeline@0.5.0)
       '@cqrs-ddd/pipeline-job-context': 0.5.0
-      '@cqrs-ddd/pipeline-rate-limit': 0.5.0(@cqrs-ddd/pipeline@0.5.0)
-      '@cqrs-ddd/pipeline-zod': 0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5)
+      '@cqrs-ddd/pipeline-rate-limit': 0.5.1(@cqrs-ddd/pipeline@0.5.0)
+      '@cqrs-ddd/pipeline-zod': 0.5.1(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5)
 
   '@cqrs-ddd/nestjs@0.5.1(@cqrs-ddd/core@0.5.1)(@cqrs-ddd/pipeline-casl@0.5.1(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.1))(@cqrs-ddd/pipeline-correlation@0.5.1)(@cqrs-ddd/pipeline-feature-flags@0.5.1(@cqrs-ddd/pipeline@0.5.1)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0)))(@cqrs-ddd/pipeline-idempotency@0.5.1(@cqrs-ddd/pipeline@0.5.1))(@cqrs-ddd/pipeline-job-context@0.5.1)(@cqrs-ddd/pipeline-rate-limit@0.5.1(@cqrs-ddd/pipeline@0.5.1))(@cqrs-ddd/pipeline-zod@0.5.1(@cqrs-ddd/pipeline@0.5.1)(zod@4.6.5))(@cqrs-ddd/pipeline@0.5.1)(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))':
     dependencies:
@@ -6583,6 +6830,19 @@ snapshots:
       '@cqrs-ddd/pipeline-job-context': 0.5.1
       '@cqrs-ddd/pipeline-rate-limit': 0.5.1(@cqrs-ddd/pipeline@0.5.1)
       '@cqrs-ddd/pipeline-zod': 0.5.1(@cqrs-ddd/pipeline@0.5.1)(zod@4.6.5)
+
+  '@cqrs-ddd/nestjs@0.6.1(@cqrs-ddd/core@0.6.1)(@cqrs-ddd/pipeline-correlation@0.6.1)(@cqrs-ddd/pipeline-job-context@0.6.1)(@cqrs-ddd/pipeline@0.6.1)(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/cqrs@12.1.3(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.1.1)':
+    dependencies:
+      '@cqrs-ddd/core': 0.6.1
+      '@cqrs-ddd/pipeline': 0.6.1
+      '@nestjs/common': 12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@nestjs/core': 12.6.0(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/cqrs': 12.1.3(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+    optionalDependencies:
+      '@cqrs-ddd/pipeline-correlation': 0.6.1
+      '@cqrs-ddd/pipeline-job-context': 0.6.1
+    transitivePeerDependencies:
+      - '@nestjs/platform-express'
 
   '@cqrs-ddd/pipeline-audit@0.5.1(@cqrs-ddd/pipeline@0.5.1)':
     dependencies:
@@ -6602,11 +6862,11 @@ snapshots:
       '@keyv/redis': 5.1.6(@node-rs/xxhash@1.7.7)(@opentelemetry/api@1.9.1)(keyv@5.6.0)
       '@keyv/sqlite': 4.0.8(keyv@5.6.0)(supports-color@10.2.2)
 
-  '@cqrs-ddd/pipeline-casl@0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0)':
+  '@cqrs-ddd/pipeline-casl@0.5.1(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0)':
     dependencies:
       '@casl/ability': 7.0.1
       '@cqrs-ddd/pipeline': 0.5.0
-      '@cqrs-ddd/safe-stringify': 0.5.0
+      '@cqrs-ddd/safe-stringify': 0.5.1
 
   '@cqrs-ddd/pipeline-casl@0.5.1(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.1)':
     dependencies:
@@ -6624,13 +6884,18 @@ snapshots:
       '@cqrs-ddd/untyped': 0.5.1
       '@cqrs-ddd/uuidv7': 0.5.1
 
+  '@cqrs-ddd/pipeline-correlation@0.6.1':
+    dependencies:
+      '@cqrs-ddd/untyped': 0.6.1
+      '@cqrs-ddd/uuidv7': 0.6.1
+
   '@cqrs-ddd/pipeline-deadletter@0.5.1(@cqrs-ddd/pipeline@0.5.1)':
     dependencies:
       '@cqrs-ddd/pipeline': 0.5.1
       '@cqrs-ddd/safe-stringify': 0.5.1
       '@cqrs-ddd/uuidv7': 0.5.1
 
-  '@cqrs-ddd/pipeline-feature-flags@0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))':
+  '@cqrs-ddd/pipeline-feature-flags@0.5.1(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))':
     dependencies:
       '@cqrs-ddd/pipeline': 0.5.0
       '@openfeature/server-sdk': 1.23.0(@openfeature/core@1.12.0)
@@ -6640,11 +6905,11 @@ snapshots:
       '@cqrs-ddd/pipeline': 0.5.1
       '@openfeature/server-sdk': 1.23.0(@openfeature/core@1.12.0)
 
-  '@cqrs-ddd/pipeline-idempotency@0.5.0(@cqrs-ddd/pipeline@0.5.0)':
+  '@cqrs-ddd/pipeline-idempotency@0.5.1(@cqrs-ddd/pipeline@0.5.0)':
     dependencies:
       '@cqrs-ddd/pipeline': 0.5.0
-      '@cqrs-ddd/safe-stringify': 0.5.0
-      '@cqrs-ddd/untyped': 0.5.0
+      '@cqrs-ddd/safe-stringify': 0.5.1
+      '@cqrs-ddd/untyped': 0.5.1
 
   '@cqrs-ddd/pipeline-idempotency@0.5.1(@cqrs-ddd/pipeline@0.5.1)':
     dependencies:
@@ -6656,16 +6921,18 @@ snapshots:
 
   '@cqrs-ddd/pipeline-job-context@0.5.1': {}
 
+  '@cqrs-ddd/pipeline-job-context@0.6.1': {}
+
   '@cqrs-ddd/pipeline-opentelemetry@0.5.1(@cqrs-ddd/pipeline@0.5.1)(@opentelemetry/api@1.9.1)':
     dependencies:
       '@cqrs-ddd/pipeline': 0.5.1
       '@cqrs-ddd/untyped': 0.5.1
       '@opentelemetry/api': 1.9.1
 
-  '@cqrs-ddd/pipeline-rate-limit@0.5.0(@cqrs-ddd/pipeline@0.5.0)':
+  '@cqrs-ddd/pipeline-rate-limit@0.5.1(@cqrs-ddd/pipeline@0.5.0)':
     dependencies:
       '@cqrs-ddd/pipeline': 0.5.0
-      '@cqrs-ddd/safe-stringify': 0.5.0
+      '@cqrs-ddd/safe-stringify': 0.5.1
 
   '@cqrs-ddd/pipeline-rate-limit@0.5.1(@cqrs-ddd/pipeline@0.5.1)':
     dependencies:
@@ -6679,10 +6946,10 @@ snapshots:
 
   '@cqrs-ddd/pipeline-tenant@0.5.1': {}
 
-  '@cqrs-ddd/pipeline-zod@0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5)':
+  '@cqrs-ddd/pipeline-zod@0.5.1(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5)':
     dependencies:
       '@cqrs-ddd/pipeline': 0.5.0
-      '@cqrs-ddd/untyped': 0.5.0
+      '@cqrs-ddd/untyped': 0.5.1
       zod: 4.6.5
 
   '@cqrs-ddd/pipeline-zod@0.5.1(@cqrs-ddd/pipeline@0.5.1)(zod@4.6.5)':
@@ -6703,17 +6970,35 @@ snapshots:
       '@cqrs-ddd/untyped': 0.5.1
       '@cqrs-ddd/uuidv7': 0.5.1
 
+  '@cqrs-ddd/pipeline@0.6.1':
+    dependencies:
+      '@cqrs-ddd/safe-stringify': 0.6.1
+      '@cqrs-ddd/untyped': 0.6.1
+      '@cqrs-ddd/uuidv7': 0.6.1
+
+  '@cqrs-ddd/safe-stringify@0.4.2': {}
+
   '@cqrs-ddd/safe-stringify@0.5.0': {}
 
   '@cqrs-ddd/safe-stringify@0.5.1': {}
+
+  '@cqrs-ddd/safe-stringify@0.6.1': {}
+
+  '@cqrs-ddd/untyped@0.4.2': {}
 
   '@cqrs-ddd/untyped@0.5.0': {}
 
   '@cqrs-ddd/untyped@0.5.1': {}
 
+  '@cqrs-ddd/untyped@0.6.1': {}
+
+  '@cqrs-ddd/uuidv7@0.4.2': {}
+
   '@cqrs-ddd/uuidv7@0.5.0': {}
 
   '@cqrs-ddd/uuidv7@0.5.1': {}
+
+  '@cqrs-ddd/uuidv7@0.6.1': {}
 
   '@ctrl/tinycolor@4.2.1': {}
 
@@ -6892,7 +7177,7 @@ snapshots:
   '@fastify/ajv-compiler@4.0.6':
     dependencies:
       ajv: 8.20.0
-      ajv-formats: 3.0.1(ajv@8.20.0)
+      ajv-formats: 3.0.1
       fast-uri: 4.2.1
 
   '@fastify/cookie@11.1.2':
@@ -7365,7 +7650,7 @@ snapshots:
     dependencies:
       '@hono/node-server': 2.0.12(hono@4.13.5)
       ajv: 8.20.0
-      ajv-formats: 3.0.1(ajv@8.20.0)
+      ajv-formats: 3.0.1
       content-type: 1.0.5
       cors: 2.8.6
       cross-spawn: 7.0.6
@@ -7424,6 +7709,30 @@ snapshots:
 
   '@neon-rs/load@0.0.4': {}
 
+  '@nestjs-pipeline/core@0.4.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)':
+    dependencies:
+      '@cqrs-ddd/safe-stringify': 0.4.2
+      '@cqrs-ddd/untyped': 0.4.2
+      '@cqrs-ddd/uuidv7': 0.4.2
+      '@nestjs/common': 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@nestjs/core': 12.1.1(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/cqrs': 12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      reflect-metadata: 0.2.2
+      rxjs: 7.8.2
+
+  '@nestjs-pipeline/core@0.4.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/cqrs@12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
+    dependencies:
+      '@cqrs-ddd/safe-stringify': 0.4.2
+      '@cqrs-ddd/untyped': 0.4.2
+      '@cqrs-ddd/uuidv7': 0.4.2
+      '@nestjs/common': 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@nestjs/core': 12.6.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/cqrs': 12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      reflect-metadata: 0.2.2
+      rxjs: 7.8.2
+    transitivePeerDependencies:
+      - '@nestjs/platform-express'
+
   '@nestjs/bull-shared@12.0.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)':
     dependencies:
       '@nestjs/common': 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
@@ -7451,6 +7760,19 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)':
+    dependencies:
+      '@standard-schema/spec': 1.1.0
+      file-type: 22.3.0(supports-color@10.2.2)
+      iterare: 1.2.1
+      load-esm: 1.0.3
+      reflect-metadata: 0.2.2
+      rxjs: 7.8.2
+      tslib: 2.9.1
+      uid: 2.0.2
+    transitivePeerDependencies:
+      - supports-color
+
   '@nestjs/core@12.1.1(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
     dependencies:
       '@nestjs/common': 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
@@ -7464,12 +7786,63 @@ snapshots:
     optionalDependencies:
       '@nestjs/platform-express': 12.1.1(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(supports-color@10.2.2)
 
+  '@nestjs/core@12.6.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
+    dependencies:
+      '@nestjs/common': 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      fast-safe-stringify: 2.1.1
+      iterare: 1.2.1
+      path-to-regexp: 8.4.2
+      reflect-metadata: 0.2.2
+      rxjs: 7.8.2
+      tslib: 2.9.1
+      uid: 2.0.2
+    optionalDependencies:
+      '@nestjs/platform-express': 12.1.1(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(supports-color@10.2.2)
+
+  '@nestjs/core@12.6.0(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
+    dependencies:
+      '@nestjs/common': 12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      fast-safe-stringify: 2.1.1
+      iterare: 1.2.1
+      path-to-regexp: 8.4.2
+      reflect-metadata: 0.2.2
+      rxjs: 7.8.2
+      tslib: 2.9.1
+      uid: 2.0.2
+    optionalDependencies:
+      '@nestjs/platform-express': 12.1.1(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(supports-color@10.2.2)
+
   '@nestjs/cqrs@12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
     dependencies:
       '@nestjs/common': 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
       '@nestjs/core': 12.1.1(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       reflect-metadata: 0.2.2
       rxjs: 7.8.2
+
+  '@nestjs/cqrs@12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
+    dependencies:
+      '@nestjs/common': 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@nestjs/core': 12.1.1(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      reflect-metadata: 0.2.2
+      rxjs: 7.8.2
+
+  '@nestjs/cqrs@12.1.3(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
+    dependencies:
+      '@nestjs/common': 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@nestjs/core': 12.6.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      reflect-metadata: 0.2.2
+      rxjs: 7.8.2
+    transitivePeerDependencies:
+      - '@nestjs/platform-express'
+
+  '@nestjs/cqrs@12.1.3(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
+    dependencies:
+      '@nestjs/common': 12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@nestjs/core': 12.6.0(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      reflect-metadata: 0.2.2
+      rxjs: 7.8.2
+    transitivePeerDependencies:
+      - '@nestjs/platform-express'
 
   '@nestjs/mapped-types@12.0.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(reflect-metadata@0.2.2)':
     dependencies:
@@ -7487,6 +7860,32 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
+
+  '@nestjs/platform-express@12.1.1(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(supports-color@10.2.2)':
+    dependencies:
+      '@nestjs/common': 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@nestjs/core': 12.6.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      cors: 2.8.6
+      express: 5.2.1(supports-color@10.2.2)
+      multer: 2.4.0
+      path-to-regexp: 8.4.2
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - supports-color
+    optional: true
+
+  '@nestjs/platform-express@12.1.1(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.6.0)(supports-color@10.2.2)':
+    dependencies:
+      '@nestjs/common': 12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@nestjs/core': 12.6.0(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      cors: 2.8.6
+      express: 5.2.1(supports-color@10.2.2)
+      multer: 2.4.0
+      path-to-regexp: 8.4.2
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - supports-color
+    optional: true
 
   '@nestjs/platform-fastify@12.1.1(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)':
     dependencies:
@@ -8151,6 +8550,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@tokenizer/inflate@0.6.1(supports-color@10.2.2)':
+    dependencies:
+      debug: 4.4.3(supports-color@10.2.2)
+      strtok3: 10.8.0
+      token-types: 6.2.0
+    transitivePeerDependencies:
+      - supports-color
+
   '@tokenizer/token@0.3.0': {}
 
   '@tootallnate/once@1.1.2':
@@ -8409,11 +8816,29 @@ snapshots:
       tinyrainbow: 3.1.1
       vitest: 5.0.2(@opentelemetry/api@1.9.1)(@types/node@26.6.3)(@vitest/coverage-v8@5.0.2)(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
 
+  '@vitest/coverage-v8@5.1.1(vitest@5.1.1)':
+    dependencies:
+      '@bcoe/v8-coverage': 1.0.2
+      '@vitest/istanbul-lib-coverage': 2.1.1
+      '@vitest/istanbul-lib-report': 2.1.1
+      ast-v8-to-istanbul: 1.0.7
+      magicast: 0.5.5
+      obug: 3.0.0
+      std-env: 4.3.0
+      tinyrainbow: 3.2.0
+      vitest: 5.1.1(@opentelemetry/api@1.9.1)(@types/node@26.6.3)(@vitest/coverage-v8@5.1.1)(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
+
   '@vitest/istanbul-lib-coverage@1.0.2': {}
+
+  '@vitest/istanbul-lib-coverage@2.1.1': {}
 
   '@vitest/istanbul-lib-report@1.0.2':
     dependencies:
       '@vitest/istanbul-lib-coverage': 1.0.2
+
+  '@vitest/istanbul-lib-report@2.1.1':
+    dependencies:
+      '@vitest/istanbul-lib-coverage': 2.1.1
 
   '@vitest/mocker@5.0.2(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
@@ -8424,7 +8849,18 @@ snapshots:
     optionalDependencies:
       vite: 8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)
 
+  '@vitest/mocker@5.1.1(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))':
+    dependencies:
+      '@jridgewell/trace-mapping': 0.3.31
+      '@vitest/spy': 5.1.1
+      estree-walker: 3.0.3
+      magic-string: 1.4.5
+    optionalDependencies:
+      vite: 8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)
+
   '@vitest/spy@5.0.2': {}
+
+  '@vitest/spy@5.1.1': {}
 
   abbrev@1.1.1:
     optional: true
@@ -8462,8 +8898,8 @@ snapshots:
     optionalDependencies:
       ajv: 8.20.0
 
-  ajv-formats@3.0.1(ajv@8.20.0):
-    optionalDependencies:
+  ajv-formats@3.0.1:
+    dependencies:
       ajv: 8.20.0
 
   ajv@8.20.0:
@@ -8880,6 +9316,8 @@ snapshots:
   ccount@2.0.1: {}
 
   chai@6.2.2: {}
+
+  chai@6.3.0: {}
 
   chalk@4.1.2:
     dependencies:
@@ -9370,7 +9808,7 @@ snapshots:
     dependencies:
       '@fastify/merge-json-schemas': 0.2.1
       ajv: 8.20.0
-      ajv-formats: 3.0.1(ajv@8.20.0)
+      ajv-formats: 3.0.1
       fast-uri: 4.2.1
       json-schema-ref-resolver: 3.0.0
       rfdc: 1.4.1
@@ -9427,6 +9865,15 @@ snapshots:
     dependencies:
       '@tokenizer/inflate': 0.4.1(supports-color@10.2.2)
       strtok3: 10.3.5
+      token-types: 6.1.2
+      uint8array-extras: 1.6.0
+    transitivePeerDependencies:
+      - supports-color
+
+  file-type@22.3.0(supports-color@10.2.2):
+    dependencies:
+      '@tokenizer/inflate': 0.6.1(supports-color@10.2.2)
+      strtok3: 10.8.0
       token-types: 6.1.2
       uint8array-extras: 1.6.0
     transitivePeerDependencies:
@@ -10072,6 +10519,10 @@ snapshots:
   luxon@3.7.2: {}
 
   magic-string@1.4.2:
+    dependencies:
+      '@jridgewell/sourcemap-codec': 1.6.0
+
+  magic-string@1.4.5:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
 
@@ -11501,6 +11952,8 @@ snapshots:
 
   std-env@4.2.0: {}
 
+  std-env@4.3.0: {}
+
   stream-combiner@0.2.2:
     dependencies:
       duplexer: 0.1.2
@@ -11561,6 +12014,10 @@ snapshots:
   strip-json-comments@5.0.3: {}
 
   strtok3@10.3.5:
+    dependencies:
+      '@tokenizer/token': 0.3.0
+
+  strtok3@10.8.0:
     dependencies:
       '@tokenizer/token': 0.3.0
 
@@ -11709,6 +12166,8 @@ snapshots:
 
   tinybench@6.2.0: {}
 
+  tinybench@6.2.4: {}
+
   tinyclip@1.0.3: {}
 
   tinyexec@1.3.1: {}
@@ -11719,6 +12178,8 @@ snapshots:
       picomatch: 4.0.7
 
   tinyrainbow@3.1.1: {}
+
+  tinyrainbow@3.2.0: {}
 
   tmp@0.2.7: {}
 
@@ -11733,6 +12194,12 @@ snapshots:
   token-types@6.1.2:
     dependencies:
       '@borewit/text-codec': 0.2.2
+      '@tokenizer/token': 0.3.0
+      ieee754: 1.2.1
+
+  token-types@6.2.0:
+    dependencies:
+      '@borewit/text-codec': 0.2.3
       '@tokenizer/token': 0.3.0
       ieee754: 1.2.1
 
@@ -11751,6 +12218,8 @@ snapshots:
       plimit-lit: 1.6.1
 
   tslib@2.8.1: {}
+
+  tslib@2.9.1: {}
 
   tsx@4.23.15:
     dependencies:
@@ -12002,6 +12471,29 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
+  vitest@5.1.1(@opentelemetry/api@1.9.1)(@types/node@26.6.3)(@vitest/coverage-v8@5.1.1)(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)):
+    dependencies:
+      '@types/chai': 5.2.3
+      '@vitest/mocker': 5.1.1(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
+      chai: 6.3.0
+      es-module-lexer: 2.3.2
+      expect-type: 1.4.0
+      magic-string: 1.4.5
+      obug: 3.0.0
+      picomatch: 4.0.7
+      std-env: 4.3.0
+      tinybench: 6.2.4
+      tinyexec: 1.3.1
+      tinyglobby: 0.2.17
+      vite: 8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)
+      why-is-node-running: 3.2.1
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.1
+      '@types/node': 26.6.3
+      '@vitest/coverage-v8': 5.1.1(vitest@5.1.1)
+    transitivePeerDependencies:
+      - msw
+
   web-namespaces@2.0.1: {}
 
   webpack-virtual-modules@0.6.2: {}
@@ -12011,6 +12503,8 @@ snapshots:
   which@2.0.2:
     dependencies:
       isexe: 2.0.0
+
+  why-is-node-running@3.2.1: {}
 
   why-is-node-running@3.2.2: {}
 

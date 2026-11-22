@@ -18,5 +18,6 @@ export default defineConfig({
         lines: 100,
       },
     },
+    setupFiles: ['reflect-metadata'],
   },
 });

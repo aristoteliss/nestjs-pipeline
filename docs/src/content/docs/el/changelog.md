@@ -3,6 +3,29 @@ title: "Αρχείο αλλαγών"
 editUrl: false
 ---
 
+## 0.6.1
+
+Τα `@nestjs-pipeline/core`, `@nestjs-pipeline/correlation` και `@nestjs-pipeline/job-context` κυκλοφορούν στην έκδοση 0.6.1, την έκδοση των πακέτων `@cqrs-ddd` που επανεξάγουν. Τα άλλα 12 πακέτα `@nestjs-pipeline/*` μένουν στην 0.4.3 ή στην 0.5.0, και τα πέντε πακέτα `@cqrs-ddd/*` αυτού του αποθετηρίου στην 0.4.2.
+
+### Αλλαγές
+
+- Τα τρία πακέτα δεν έχουν δικό τους κώδικα. Επανεξάγουν τα πακέτα `@cqrs-ddd` 0.6.1 του https://github.com/aristoteliss/ddd-cqrs, του κύριου αποθετηρίου, με την ίδια λογική και τις ίδιες δυνατότητες:
+  - `@nestjs-pipeline/core`: `@cqrs-ddd/pipeline` και `@cqrs-ddd/nestjs`.
+  - `@nestjs-pipeline/correlation`: `@cqrs-ddd/pipeline-correlation` και `@cqrs-ddd/nestjs/correlation`.
+  - `@nestjs-pipeline/job-context`: `@cqrs-ddd/pipeline-job-context` και `@cqrs-ddd/nestjs/job-context`.
+- Κάθε πακέτο εξαρτάται από το `@cqrs-ddd/nestjs` `^0.6.1`. Τα peers του είναι τα `@cqrs-ddd/core`, `@cqrs-ddd/pipeline`, το πακέτο `@cqrs-ddd` που επανεξάγει (`^0.6.1`), και τα `@nestjs/common`, `@nestjs/core` και `@nestjs/cqrs` 12.
+- Κάθε README ξεκινά με μια σημείωση: το κύριο αποθετήριο είναι το ddd-cqrs, και μια εφαρμογή μπορεί να χρησιμοποιήσει απευθείας τα πακέτα `@cqrs-ddd`. Τα πακέτα δεν έχουν αποσυρθεί.
+- Τα πακέτα behaviors της 0.4.3 (`audit`, `cache`, `casl`, `deadletter`, `feature-flags`, `idempotency`, `opentelemetry`, `rate-limit`, `resilience`, `zod`) απαιτούν το `@nestjs-pipeline/core` `^0.4.3`, όπως πριν.
+
+### Αλλαγές που σπάνε τη συμβατότητα
+
+- Το API είναι το API των `@cqrs-ddd` 0.6.1. Ο οδηγός https://aristoteliss.github.io/ddd-cqrs/el/guides/from-nestjs-pipeline/ δίνει όλες τις αλλαγές. Για αυτά τα πακέτα:
+  - Ένα behavior είναι provider της εφαρμογής. Το `PipelineModule.forRoot()` δεν έχει τις επιλογές `behaviors`, `bootstrapLogLevel` και `loggerProvider`, και το module δεν έχει `forRootAsync()` ή `forFeature()`.
+  - Τα `LOGGING_BEHAVIOR_LOGGER`, `CORRELATION_OPTIONS`, `PIPELINE_BEHAVIORS_METADATA`, `PIPELINE_BEHAVIORS_OPTIONS_METADATA` και `PIPELINE_SKIPPED_BEHAVIORS_METADATA` δεν εξάγονται. Το `pipelineOf(handler)` διαβάζει τη δήλωση ενός handler.
+  - Το `HttpCorrelationMiddleware` είναι το `CorrelationMiddleware`.
+  - Τα `@nestjs-pipeline/correlation` και `@nestjs-pipeline/job-context` απαιτούν τα peers του `@cqrs-ddd/nestjs`.
+- Οι εκδόσεις 0.1 έως 0.4 παραμένουν στο npm αμετάβλητες.
+
 ## 0.4.4
 
 Μόνο το `@nestjs-pipeline/correlation` κυκλοφορεί στην έκδοση 0.4.4, μια έκδοση διορθώσεων. Τα άλλα 13 πακέτα `@nestjs-pipeline/*` μένουν στην 0.4.3 και τα πέντε πακέτα `@cqrs-ddd/*` αυτού του αποθετηρίου στην 0.4.2.

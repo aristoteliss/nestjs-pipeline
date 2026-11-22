@@ -4,10 +4,11 @@ description: "NestJS CQRS pipeline behavior base library"
 editUrl: false
 ---
 
-> **From 0.5.0 this package continues as [`@cqrs-ddd/pipeline`](https://www.npmjs.com/package/@cqrs-ddd/pipeline).** Its code, issues and
-> releases are in [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs), documented at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline/).
-> NestJS applications add [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs). Versions 0.1 to 0.4 of
-> `@nestjs-pipeline/core` stay on npm unchanged, and 0.4.x receives fixes only.
+:::tip[The main repository is ddd-cqrs]
+**You can use [`@cqrs-ddd/pipeline`](https://www.npmjs.com/package/@cqrs-ddd/pipeline) and [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs) directly.** From 0.6.1, `@nestjs-pipeline/core` has no code of its own: it re-exports `@cqrs-ddd/pipeline` and `@cqrs-ddd/nestjs` at the same version. The code, the issues and the releases are in [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs). The documentation of 0.6.1 is at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline/), and [From @nestjs-pipeline 0.4.x](https://aristoteliss.github.io/ddd-cqrs/guides/from-nestjs-pipeline/) gives the changes.
+
+`@nestjs-pipeline/core` is not deprecated. Versions 0.1 to 0.4 stay on npm unchanged. This page documents the 0.4.x API.
+:::
 
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/core.svg)](https://www.npmjs.com/package/@nestjs-pipeline/core)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/core.svg)](https://www.npmjs.com/package/@nestjs-pipeline/core)

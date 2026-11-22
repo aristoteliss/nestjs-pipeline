@@ -4,10 +4,11 @@ description: "Βασική βιβλιοθήκη pipeline behaviors για το N
 editUrl: false
 ---
 
-> **Από την έκδοση 0.5.0 το πακέτο αυτό συνεχίζει ως [`@cqrs-ddd/pipeline`](https://www.npmjs.com/package/@cqrs-ddd/pipeline).** Ο κώδικας, τα issues και
-> οι εκδόσεις του βρίσκονται στο [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs), με τεκμηρίωση στο [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline/).
-> Οι εφαρμογές NestJS προσθέτουν το [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs). Οι εκδόσεις 0.1 έως 0.4 του
-> `@nestjs-pipeline/core` παραμένουν στο npm αμετάβλητες, και η γραμμή 0.4.x λαμβάνει μόνο διορθώσεις.
+:::tip[Το κύριο αποθετήριο είναι το ddd-cqrs]
+**Μπορείτε να χρησιμοποιήσετε απευθείας τα [`@cqrs-ddd/pipeline`](https://www.npmjs.com/package/@cqrs-ddd/pipeline) και [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs).** Από την έκδοση 0.6.1, το `@nestjs-pipeline/core` δεν έχει δικό του κώδικα: επανεξάγει τα `@cqrs-ddd/pipeline` και `@cqrs-ddd/nestjs` στην ίδια έκδοση. Ο κώδικας, τα issues και οι εκδόσεις βρίσκονται στο [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs). Η τεκμηρίωση της 0.6.1 βρίσκεται στο [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline/), και ο οδηγός [From @nestjs-pipeline 0.4.x](https://aristoteliss.github.io/ddd-cqrs/el/guides/from-nestjs-pipeline/) δίνει τις αλλαγές.
+
+Το `@nestjs-pipeline/core` δεν έχει αποσυρθεί. Οι εκδόσεις 0.1 έως 0.4 παραμένουν στο npm αμετάβλητες. Η σελίδα αυτή τεκμηριώνει το API της σειράς 0.4.x.
+:::
 
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/core.svg)](https://www.npmjs.com/package/@nestjs-pipeline/core)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/core.svg)](https://www.npmjs.com/package/@nestjs-pipeline/core)

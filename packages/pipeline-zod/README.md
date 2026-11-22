@@ -23,7 +23,7 @@ Published as an ES module; a CommonJS application loads it with `require()`. Com
 **Peer dependencies:**
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core
+pnpm add @nestjs-pipeline/core@^0.4.3 @nestjs/common @nestjs/core
 ```
 
 ## License

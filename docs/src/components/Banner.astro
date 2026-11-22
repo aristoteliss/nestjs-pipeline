@@ -2,8 +2,8 @@
 const entryBanner = Astro.locals.starlightRoute.entry.data.banner;
 const isGreek = Astro.locals.starlightRoute.id.startsWith('el/') || Astro.currentLocale === 'el';
 const defaultContent = isGreek
-	? 'Από την έκδοση 0.5.0 τα πακέτα συνεχίζουν ως <a href="https://www.npmjs.com/org/cqrs-ddd">@cqrs-ddd</a>, με τεκμηρίωση στο <a href="https://aristoteliss.github.io/ddd-cqrs/">aristoteliss.github.io/ddd-cqrs</a>· οι εφαρμογές NestJS προσθέτουν το <a href="https://www.npmjs.com/package/@cqrs-ddd/nestjs">@cqrs-ddd/nestjs</a>. Αυτός ο ιστότοπος τεκμηριώνει τη σειρά 0.4.x.'
-	: 'From 0.5.0 the packages continue as <a href="https://www.npmjs.com/org/cqrs-ddd">@cqrs-ddd</a>, documented at <a href="https://aristoteliss.github.io/ddd-cqrs/">aristoteliss.github.io/ddd-cqrs</a>; NestJS applications add <a href="https://www.npmjs.com/package/@cqrs-ddd/nestjs">@cqrs-ddd/nestjs</a>. This site documents the 0.4.x line.';
+	? 'Το κύριο αποθετήριο είναι το <a href="https://github.com/aristoteliss/ddd-cqrs">ddd-cqrs</a>: τα πακέτα <a href="https://www.npmjs.com/org/cqrs-ddd">@cqrs-ddd</a>, με τεκμηρίωση στο <a href="https://aristoteliss.github.io/ddd-cqrs/">aristoteliss.github.io/ddd-cqrs</a>. Από την έκδοση 0.6.1, τα @nestjs-pipeline/core, /correlation και /job-context τα επανεξάγουν. Οι άλλες σελίδες πακέτων τεκμηριώνουν τη σειρά 0.4.x.'
+	: 'The main repository is <a href="https://github.com/aristoteliss/ddd-cqrs">ddd-cqrs</a>: the <a href="https://www.npmjs.com/org/cqrs-ddd">@cqrs-ddd</a> packages, documented at <a href="https://aristoteliss.github.io/ddd-cqrs/">aristoteliss.github.io/ddd-cqrs</a>. From 0.6.1, @nestjs-pipeline/core, /correlation and /job-context re-export them. The other package pages document the 0.4.x line.';
 const content = entryBanner ? entryBanner.content : defaultContent;
 ---
 

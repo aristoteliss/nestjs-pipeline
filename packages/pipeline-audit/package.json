@@ -57,12 +57,12 @@
     "prepublishOnly": "pnpm run rebuild"
   },
   "peerDependencies": {
-    "@nestjs-pipeline/core": "workspace:^",
+    "@nestjs-pipeline/core": "^0.4.3",
     "@nestjs/common": "^12.1.0",
     "reflect-metadata": "^0.1.13 || ^0.2.0"
   },
   "devDependencies": {
-    "@nestjs-pipeline/core": "workspace:*",
+    "@nestjs-pipeline/core": "0.4.3",
     "@nestjs/common": "^12.1.1",
     "@vitest/coverage-v8": "^5.0.2",
     "reflect-metadata": "^0.2.2",

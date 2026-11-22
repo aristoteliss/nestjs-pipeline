@@ -15,7 +15,7 @@ CASL authorization for `@nestjs-pipeline/core`, in two stages:
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/casl @nestjs-pipeline/core @casl/ability @nestjs/common @nestjs/core reflect-metadata
+pnpm add @nestjs-pipeline/casl @nestjs-pipeline/core@^0.4.3 @casl/ability @nestjs/common @nestjs/core reflect-metadata
 ```
 
 Peers: `@casl/ability` `^7.0.0`, `@nestjs/common` `^12.1.0`, `@nestjs/core` `^12.1.0`,

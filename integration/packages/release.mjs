@@ -40,9 +40,9 @@ try {
     { cause: error },
   );
 }
-// One release line per run (`0.4` by default): the 0.4.x packages keep receiving fixes,
-// and the 0.5 NestJS adapters peer the @cqrs-ddd 0.5 packages; the two lines would
-// install two versions of @cqrs-ddd/core into one consumer.
+// One release line per run (`0.4` by default): the 0.4.x packages, the 0.5 facade on the
+// @cqrs-ddd 0.5 packages, and the 0.6 facades on the @cqrs-ddd 0.6 packages; two lines
+// would install two versions of @cqrs-ddd/core into one consumer.
 const line = process.argv[2] ?? '0.4';
 const packages = readdirSync(resolve(root, 'packages'))
   .sort()
@@ -175,7 +175,7 @@ try {
     }
     for (const name of Object.keys(manifest.peerDependencies ?? {})) {
       // The 0.4 line proves packages load without their optional peers; each entry
-      // point of the 0.5 adapter needs its own optional peer, and every entry point
+      // point of the 0.5 and 0.6 facades needs its own optional peer, and every entry point
       // is loaded below.
       if (line === '0.4' && manifest.peerDependenciesMeta?.[name]?.optional) {
         continue;

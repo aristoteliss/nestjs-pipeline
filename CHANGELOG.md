@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.6.1
+
+`@nestjs-pipeline/core`, `@nestjs-pipeline/correlation` and `@nestjs-pipeline/job-context`
+are released at 0.6.1, the version of the `@cqrs-ddd` packages that they re-export. The
+other 12 `@nestjs-pipeline/*` packages stay at 0.4.3 or 0.5.0, and the five `@cqrs-ddd/*`
+packages of this repository at 0.4.2.
+
+### Changed
+
+- The three packages have no code of their own. They re-export the `@cqrs-ddd` 0.6.1
+  packages of https://github.com/aristoteliss/ddd-cqrs, the main repository, with the same
+  logic and the same capabilities:
+  - `@nestjs-pipeline/core`: `@cqrs-ddd/pipeline` and `@cqrs-ddd/nestjs`.
+  - `@nestjs-pipeline/correlation`: `@cqrs-ddd/pipeline-correlation` and
+    `@cqrs-ddd/nestjs/correlation`.
+  - `@nestjs-pipeline/job-context`: `@cqrs-ddd/pipeline-job-context` and
+    `@cqrs-ddd/nestjs/job-context`.
+- Each package depends on `@cqrs-ddd/nestjs` `^0.6.1`. Its peers are `@cqrs-ddd/core`,
+  `@cqrs-ddd/pipeline`, the re-exported `@cqrs-ddd` package (`^0.6.1`), and
+  `@nestjs/common`, `@nestjs/core` and `@nestjs/cqrs` 12.
+- Each README starts with a notice: the main repository is ddd-cqrs, and an application
+  can use the `@cqrs-ddd` packages directly. The packages are not deprecated.
+- The 0.4.3 behavior packages (`audit`, `cache`, `casl`, `deadletter`, `feature-flags`,
+  `idempotency`, `opentelemetry`, `rate-limit`, `resilience`, `zod`) require
+  `@nestjs-pipeline/core` `^0.4.3`, as before.
+
+### Breaking
+
+- The API is the API of `@cqrs-ddd` 0.6.1. The guide
+  https://aristoteliss.github.io/ddd-cqrs/guides/from-nestjs-pipeline/ gives all the
+  changes. For these packages:
+  - A behavior is a provider of the application. `PipelineModule.forRoot()` has no
+    `behaviors`, `bootstrapLogLevel` or `loggerProvider` option, and the module has no
+    `forRootAsync()` or `forFeature()`.
+  - `LOGGING_BEHAVIOR_LOGGER`, `CORRELATION_OPTIONS`, `PIPELINE_BEHAVIORS_METADATA`,
+    `PIPELINE_BEHAVIORS_OPTIONS_METADATA` and `PIPELINE_SKIPPED_BEHAVIORS_METADATA` are not
+    exported. `pipelineOf(handler)` reads the declaration of a handler.
+  - `HttpCorrelationMiddleware` is `CorrelationMiddleware`.
+  - `@nestjs-pipeline/correlation` and `@nestjs-pipeline/job-context` require the peers of
+    `@cqrs-ddd/nestjs`.
+- Versions 0.1 to 0.4 stay on npm unchanged.
+
 ## 0.4.4
 
 Only `@nestjs-pipeline/correlation` is released at 0.4.4, a fix release. The other 13

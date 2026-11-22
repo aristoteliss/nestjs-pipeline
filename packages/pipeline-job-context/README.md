@@ -1,29 +1,65 @@
 # @nestjs-pipeline/job-context
 
-> **From 0.5.0 this package continues as [`@cqrs-ddd/pipeline-job-context`](https://www.npmjs.com/package/@cqrs-ddd/pipeline-job-context).** Its code, issues and
-> releases are in [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs), documented at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-job-context/).
-> NestJS applications add [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs). Versions 0.1 to 0.4 of
-> `@nestjs-pipeline/job-context` stay on npm unchanged, and 0.4.x receives fixes only.
+> ## The main repository is [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs). You can use [`@cqrs-ddd/pipeline-job-context`](https://www.npmjs.com/package/@cqrs-ddd/pipeline-job-context) and [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs) directly.
+>
+> **This package has no code of its own.** From 0.6.1 it re-exports `@cqrs-ddd/pipeline-job-context` and
+> `@cqrs-ddd/nestjs/job-context` at the same version. The code, the issues and the releases are in
+> [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs). The documentation is at
+> [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/).
+>
+> **This package is not deprecated.** An application can keep the `@nestjs-pipeline/job-context` name, or
+> replace it with the `@cqrs-ddd` packages. The import paths change, and the code stays
+> the same. Versions 0.1 to 0.4 stay on npm unchanged.
 
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/job-context.svg)](https://www.npmjs.com/package/@nestjs-pipeline/job-context)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/job-context.svg)](https://www.npmjs.com/package/@nestjs-pipeline/job-context)
 
-The execution context of a request, carried into the queue jobs it enqueues: the tenant,
-the correlation id and the principal. A job then makes the decisions the request would
-have made. System-started work, such as a cron job, declares its context explicitly
-instead. Nothing falls back to a default tenant or an anonymous principal.
+The execution context of a request, carried into the queue jobs that it enqueues: the tenant, the correlation id and the principal. A job then makes the decisions that the request makes. System-started work, such as a cron job, declares its context explicitly. Nothing falls back to a default tenant or an anonymous principal.
 
-**Documentation:** [guide](https://aristoteliss.github.io/nestjs-pipeline/packages/nestjs-pipeline/job-context/) · [API reference](https://aristoteliss.github.io/nestjs-pipeline/api/nestjs-pipeline/job-context/) · [all packages](https://aristoteliss.github.io/nestjs-pipeline/)
+**Documentation:** [@cqrs-ddd/pipeline-job-context](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-job-context/) · [@cqrs-ddd/nestjs/job-context](https://aristoteliss.github.io/ddd-cqrs/packages/nestjs/#background-jobs-with-jobcontextmodule) · [from @nestjs-pipeline 0.4.x](https://aristoteliss.github.io/ddd-cqrs/guides/from-nestjs-pipeline/)
 
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/job-context @nestjs/common
+pnpm add @nestjs-pipeline/job-context @cqrs-ddd/pipeline-job-context \
+  @cqrs-ddd/pipeline @cqrs-ddd/core @nestjs/common @nestjs/core @nestjs/cqrs
 ```
 
-Requires Node.js 22.12 or later and `@nestjs/common` `^12.1.0`.
+Requires Node.js 22.12 or later and NestJS 12.
 
-Published as an ES module; a CommonJS application loads it with `require()`. Coming from 0.3.x, see [Upgrading from 0.3.x](https://aristoteliss.github.io/nestjs-pipeline/upgrading/from-0-3/).
+## Exports
+
+- Everything of `@cqrs-ddd/pipeline-job-context`: `withJobContext`, `@InJobContext`, `@AsSystem`, `registerJobContext` and the job context errors.
+- Everything of `@cqrs-ddd/nestjs/job-context`: `JobContextModule`.
+
+## Example
+
+```typescript
+import { JobContextModule } from '@nestjs-pipeline/job-context';
+import { correlationSource } from '@nestjs-pipeline/correlation';
+import { tenantSource } from '@cqrs-ddd/pipeline-tenant';
+import { Module } from '@nestjs/common';
+import { SessionJobPrincipal } from './session-job-principal.service.js';
+
+@Module({
+  imports: [
+    JobContextModule.forRoot({
+      principal: SessionJobPrincipal,
+      tenants: ['tenant_primary', 'tenant_secondary'],
+      sources: { tenantId: tenantSource, correlationId: correlationSource },
+    }),
+  ],
+})
+export class BackgroundJobModule {}
+```
+
+## Upgrade from 0.4.x
+
+The API of 0.6.1 is the API of `@cqrs-ddd` 0.6.1. The guide
+[From @nestjs-pipeline 0.4.x](https://aristoteliss.github.io/ddd-cqrs/guides/from-nestjs-pipeline/) gives all the changes. The changes for this package:
+
+- `JobContextModule` keeps its options. `withJobContext`, `@InJobContext` and `@AsSystem` keep their names.
+- The package requires the peers of `@cqrs-ddd/nestjs`: `@cqrs-ddd/core`, `@cqrs-ddd/pipeline`, `@nestjs/core` and `@nestjs/cqrs`.
 
 ## License
 
