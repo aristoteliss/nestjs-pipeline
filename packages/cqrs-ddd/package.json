@@ -63,10 +63,10 @@
     "@cqrs-ddd/nestjs": "^0.5.0"
   },
   "devDependencies": {
-    "@cqrs-ddd/core": "^0.5.0",
-    "@cqrs-ddd/pipeline": "^0.5.0",
-    "@cqrs-ddd/pipeline-correlation": "^0.5.0",
-    "@cqrs-ddd/pipeline-job-context": "^0.5.0",
+    "@cqrs-ddd/core": "^0.5.2",
+    "@cqrs-ddd/pipeline": "^0.5.2",
+    "@cqrs-ddd/pipeline-correlation": "^0.5.2",
+    "@cqrs-ddd/pipeline-job-context": "^0.5.2",
     "@nestjs/common": "^12.1.1",
     "@nestjs/core": "^12.1.1",
     "@nestjs/cqrs": "^12.1.0",
